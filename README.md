@@ -1,4 +1,4 @@
-/zabbix-grafana-automation
+        /zabbix-grafana-automation
         /zabbix-grafana-automation-scripts-install
         install-zabbix-grafana.ufw-linux.sh  (meu script com uma adição de comandos para deiaxr somente as portas necessárias liberadas no firewall do linux)
         LEIAME.md                            
