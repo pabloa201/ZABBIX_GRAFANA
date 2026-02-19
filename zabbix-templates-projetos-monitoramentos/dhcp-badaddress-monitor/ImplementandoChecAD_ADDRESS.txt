@@ -1,0 +1,264 @@
+Este é um projeto para ajudar a controlar casos de BAD_ADDRESS em servidores DHCP;
+A motivação para a criação do mesmo, foi devido a uma situação onde foram utilizados adaptadores de rede USB de má qualidade, e os mesmos por tentarem sem parar capturar um endereço de ip,
+acabava invalidado e o DHCP registrando como BAD_ADDRESS. Quando aconteceu isso, foi de forma silenciosa, e somente fomos perceber quando diversas maquinas não estavam conseguindo mais autenticar na rede novamente,
+ao tentar verificar se havia algum indicio no DHCP, nos deparamos com uma enorme lista de BAD_ADDRESS, ao deletar a rede foi retomada ao funcionamento.
+Em um ambiente corporativo, isso é um caso sensível, pois ao ocorrer isto, até conseguirmos encontrar o caso, foi tempo perdido e operação parada para alguns setores, e como nao tem nenhuma notificação do windows que nos ajude a monitorar isso,
+decidi desenvolver algo que de forma simples, avise sempre que ocorra o problema.
+
+Deixando claro que é um monitoramento somente para alertar sempre que um endereço de IP queimar e cair com BAD_ADDRESS,
+ou seja, ele não vai se auto-resolver... segue explicação do funcionamento:
+
+é uma solução que trabalha em conjunto com alguns itens, será necessário:
+
+*Um Servidor ZABBIX obviamente para monitorar
+*Utilizar o Agent Zabbix V2
+*Uma solução em python para ler os logs do DHCP que ficam salvos em:
+C:\Windows\System32\dhcp
+O Windows administra esses logs por dia de semana(seg/ter/qua/qui...etc) pode ser inglês tambem (mon/thu/fri...etc) mas no codigo vamos ter a função para o app detectar isso...
+O script, tem memoria propria, que ele gera em um TXT de LOG, ou seja, não precisamos nos preocupar com alertas repetidos, pois ao ele vai verificar se aquele registro existe, e se nao existir, ele envia o alerta.
+o log não ficará gigantesco, pois após um numero x de dias, ele zera e inicia um novo, evitando assim de criar um longo arquivo de texto.
+
+basicamente estes itens que vao precisar...
+
+
+o funcionamento é simples...
+
+no servidor DHCP com o agent zabbix v2, vamos adicionar no final do arquivo config uma linha de codigo apontando para a pasta que vamos deixar nosso script
+e apontar no ponto de server ativo o servidor zabbix
+
+no zabbix, vamos criar um item no host em questão, apontando para a linha de codigo que apontando no final do arquivo config, e vamos criar uma trigger para disparar o alerta no zabbix informando que acabou de registrar um novo BAD_ADDRESS no servidor.
+
+
+vamos ao passo a passo:
+
+
+1. com seu servidor zabbix pronto e o zabbix agent v2 instalado e já detectado pelo servidor zabbix. Crie um item novo com os seguintes parâmetros
+Nome: ALERTA! BAD_ADDRESS ( Caso queira mudar o nome, pode altera-lo)
+Tipo: Agent Zabbix (Ativo)
+Chave: dhcp.badaddress      (Importante o campo de chave estar desse modo pois vamos nomear assim dentro do arquivo de config o parâmetro que vai rodar o script)
+
+Tipo de informação: Numerico (Inteiro sem sinal)
+
+Intervalo de Atualização: 2m     ( eu coloquei 2 minutos, mas caso queira, pode colocar mais ou menos tempo... acredito que 2/5 min é um tempo ótimo)
+
+
+Histórico: Armazene até = 7d      (coloquei para armazenar por 7 dias, após isso, resetar o historico do item)
+
+
+2. Salve o item
+
+3. Agora vamos criar uma trigger para sempre que for encontrado um novo BAD_ADDRESS, ele disparar a notificação:
+
+4. Clique em triggers, e após isso, Criar Trigger
+
+5. Adicione os seguintes dados:
+
+Nome: ALERTA!!! BAD_ADDRESS NA REDE      (caso queira mudar, fique a vontade)
+
+Severidade: Selecione como 'Alta'
+
+Expressão de incidente: last(/Nome_Do_Seu_Host/dhcp.badaddress)=1    (Nome do host deve ser exatamente como você criou no zabbix, se voce criou o host com nome SRVDHCP digite "last(/SRVDHCP/dhcp.badaddress)=1"
+
+Expressão de Recuperação: last(/Nome_Do_Seu_Host/dhcp.badaddress)=0
+
+
+6. Salve a trigger
+
+pronto agora vamos para o servidor:
+
+1. vá até o diretório onde fica instalado e salvo o arquivo de configuração do zabbix "C:\Program Files\Zabbix Agent 2"
+
+2. abra com um editor de texto o arquivo "zabbix_agent2.conf", de preferencia com o notepad++ que abrira com uma visualização mais agradavel.
+
+3. com ele aberto, verifique se na linha:
+
+ServerActive= está o ip do seu servidor zabbix
+
+4. Verifique se no campo a seguir está o nome do host exatamente como criou no servidor zabbix:
+
+Hostname= digite aqui o nome do seu servidor igual está no zabbix server
+exemplo: se estiver lá como SRVDHCP, digite SRVDHCP
+
+5. Agora vamos deixar salvo a função que interessa, a do script que vamos criar para realizar o check de registro de BAD_ADDRESS.
+
+navegue até o final do arquivo e cole o seguinte parametro:
+
+UserParameter=dhcp.badaddress, "C:\Scripts\CheckBAD_ADDRESS\CheckBAD_ADDRESS.exe"
+
+6. Lembra que no zabbix criamos uma chave com o nome 'dhcp.badaddress' aquela chave vai chamar a execução do script que vamos colocar no caminho "C:\Scripts\CheckBAD_ADDRESS\CheckBAD_ADDRESS.exe"
+
+
+Agora vamos a parte do Python:
+
+Objetivo aqui é ir direto para o processo do codigo... nao vamos ensinar toda instalação de uma IDE.
+
+1. o nome do projeto fica a seu critério, mas colocamos como "CheckBAD_ADDRESS", o nome na verdade não importa tanto, pois podemos renomear o executável posteriormente.
+
+2. Com a IDE aberta e com a tela de codigo a vista, cole o seguinte codigo:
+
+da linha de baixo até
+
+import os
+import sys
+import hashlib
+import datetime
+
+
+def check_new_bad_address():
+    # 1. Definir caminhos absolutos de forma segura
+    if getattr(sys, 'frozen', False):
+        base_path = os.path.dirname(sys.executable)
+    else:
+        base_path = os.path.dirname(os.path.abspath(__file__))
+
+    arquivo_controle = os.path.join(base_path, "last_check.txt")
+    arquivo_historico = os.path.join(base_path, "conflitos_dhcp.txt")
+    arquivo_contador = os.path.join(base_path, "contador.txt")
+
+    # 2. Identificar o log do Windows (Português/Inglês)
+    dias_pt = {'Mon': 'Seg', 'Tue': 'Ter', 'Wed': 'Qua', 'Thu': 'Qui', 'Fri': 'Sex', 'Sat': 'Sab', 'Sun': 'Dom'}
+    now = datetime.datetime.now()
+    dia_en = now.strftime('%a')
+    dia_pt = dias_pt.get(dia_en, dia_en)
+
+    caminho_log = f"C:\\Windows\\System32\\dhcp\\DhcpSrvLog-{dia_pt}.log"
+    if not os.path.exists(caminho_log):
+        caminho_log = f"C:\\Windows\\System32\\dhcp\\DhcpSrvLog-{dia_en}.log"
+
+    if not os.path.exists(caminho_log):
+        return "0"
+
+    # 3. Ler o Hash anterior
+    last_hash = ""
+    if os.path.exists(arquivo_controle):
+        try:
+            with open(arquivo_controle, 'r') as f:
+                last_hash = f.read().strip()
+        except:
+            pass
+
+    # 4. Processar o log
+    try:
+        with open(caminho_log, 'r', encoding='latin-1', errors='ignore') as f:
+            lines = f.readlines()
+
+        for line in reversed(lines):
+            line_strip = line.strip()
+            if line_strip.startswith('13') or "BAD_ADDRESS" in line_strip:
+                current_hash = hashlib.md5(line_strip.encode('utf-8')).hexdigest()
+
+                if current_hash != last_hash:
+                    # Tenta salvar os arquivos de log/controle
+                    try:
+                        # Gerenciar contador
+                        count = 0
+                        if os.path.exists(arquivo_contador):
+                            with open(arquivo_contador, 'r') as c:
+                                content = c.read().strip()
+                                count = int(content) if content.isdigit() else 0
+
+                        novo_count = 1 if count >= 3 else count + 1
+                        modo = 'w' if count >= 3 else 'a'
+
+                        # Salvar histórico
+                        with open(arquivo_historico, modo) as h:
+                            ts = datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+                            h.write(f"[{ts}] {line_strip}\n")
+
+                        # Salvar novo contador e novo hash
+                        with open(arquivo_contador, 'w') as c:
+                            c.write(str(novo_count))
+                        with open(arquivo_controle, 'w') as ctrl:
+                            ctrl.write(current_hash)
+                    except:
+                        pass  # Se falhar a escrita, ainda assim retornamos 1
+
+                    return "1"
+                else:
+                    return "0"
+        return "0"
+    except:
+        return "0"
+
+
+if __name__ == "__main__":
+    try:
+        resultado = check_new_bad_address()
+        # Garante que o resultado seja string e limpa espaços
+        saida = str(resultado).strip()
+        # Usa o print comum que é mais seguro para o console do PyCharm
+        print(saida, end='')
+    except Exception:
+        # Caso ocorra um erro catastrófico, retorna 0 para não quebrar o Zabbix
+        print("0", end='')
+
+até a linha de cima.
+
+3. com o codigo colado no editor... instale a biblioteca pyinstaller no projeto python, segue o codigo:
+
+digite no terminal python:   pip install pyinstaller
+
+4. feito isso aguarde até a instalação concluir.
+
+5. após a instalação do pyinstaller concluir, vamos tornar o codigo um arquivo executavel .EXE
+
+6. identifique o nome que seu arquivo de codigo ficou... normalmente o arquivo de codigo criado em um projeto python automaticamente por uma IDE se chama main.py, mas pode mudar talvez, por isso, certifique-se de descobrir o nome do seu aquivo de codigo python... a IDE que utilizo é a Pycharm, com base nela, ela cria o arquivo main.py automaticamente.
+
+7. com o nome do seu aquivo de codigo, vamos supor que seja main.py
+
+8. vá até o terminal python e digite o seguinte comando para transformar seu projeto em um executavel
+
+pyinstaller --onefile --console main.py
+
+o que são estes parametros:
+
+pyinstaller = chama a biblioteca que instalamos
+--onefile = significa que vai criar um arquivo unico do projeto
+--console = significa que ele vai abrir no momento uma tela de console enquanto roda ( será rápido esta abertura.)
+main.py = é o nome do seu arquivo do projeto... é o que pode mudar, por isso é importante saber o nome do seu arquivo, se por exemplo ele se chamar 'ColetaBadAddres.py', voce digitaria " pyinstaller --onefile --console ColetaBadAddres.py"
+
+9. feito isso e com o projeto transformado em .EXE, caso estiver utilizando pycharm, ele ficará dentro da pasta "Dist" dentro do seu projeto.
+
+Vamos voltar ao servidor agora
+
+1. na raiz da unidade C:, crie uma pasta Scripts
+2. dentro da pasta Scripts, crie uma pasta CheckBAD_ADDRESS
+3. cole dentro dessa pasta o arquivo executavel que criamos no python
+4. renomeie o executavel para CheckBAD_ADDRESS
+
+Lembre-se de dar permissão a todos nessa pasta, para que o agent zabbix nao tenha dificuldades de rodar e criar o arquivo de log.
+
+
+feito esses passos todos acima, reinicie o serviço do agent zabbix no servidor DHCP, e reinicie o servidor zabbix com o comando 
+
+systemctl restart zabbixserver
+
+
+após isso... monitora dentro da pasta onde colocamos o executavel: "C:\Scripts\CheckBAD_ADDRESS\CheckBAD_ADDRESS.exe"
+
+se o zabbix conseguir executar com sucesso, devem ser criados 3 arquivos de texto dentro do local com os seguintes nomes:
+
+conflitos_dhcp.txt
+contador.txt
+last_check.txt
+
+os logs de BAD_ADDRESS encontrados ficam no arquivo conflitos_dhcp.txt, e aparecem dessa forma:
+
+[16/01/2026 14:00:45] 13,01/16/26,09:04:17,Conflict,150.0.0.42,BAD_ADDRESS,,,0,6,,,,,,,,,0
+[16/01/2026 14:42:44] 13,01/16/26,14:41:01,Conflict,150.0.0.54,BAD_ADDRESS,,,0,6,,,,,,,,,0
+
+sempre que houver um novo ip, ele vai adicionar abaixo...
+
+observação, se voce excluir esse arquivo, ele vai ler novamente os ips antigo... importante que esse arquivo se mantenha na pasta, pois ele é a memoria do script de verificação.
+
+
+
+
+
+
+
+
+
+
+
+
