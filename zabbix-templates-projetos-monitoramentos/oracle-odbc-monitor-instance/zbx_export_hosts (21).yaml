@@ -1,0 +1,29 @@
+zabbix_export:
+  version: '7.2'
+  host_groups:
+    - uuid: 748ad4d098d447d492bb935c907f652f
+      name: Databases
+  hosts:
+    - host: BASE_HML
+      name: BASE_HML
+      groups:
+        - name: Databases
+      interfaces:
+        - ip: 151.151.151.151
+          interface_ref: if1
+      items:
+        - name: 'Status de Conectividade Oracle'
+          type: ODBC
+          key: 'db.odbc.select[oracle_up,{$ORACLE.DSN}]'
+          params: 'SELECT 1 FROM DUAL'
+          triggers:
+            - expression: 'nodata(/BASE_HML/db.odbc.select[oracle_up,{$ORACLE.DSN}],2m)=1'
+              name: 'APOHML ESTÁ DOWN'
+              priority: DISASTER
+      macros:
+        - macro: '{$ORACLE.DSN}'
+          value: APOHML
+        - macro: '{$ORACLE.PORT}'
+          value: '1521'
+        - macro: '{$ORACLE.SERVICE}'
+          value: APOHML
