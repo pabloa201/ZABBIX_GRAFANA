@@ -1,0 +1,2699 @@
+zabbix_export:
+  version: '7.2'
+  host_groups:
+    - uuid: 2d1177743dd04d60b4880321183a15b5
+      name: SERVIDORES
+  hosts:
+    - host: LINCKFS2-SJ_10.0.0.245
+      name: LINCKFS2-SJ_10.0.0.245
+      groups:
+        - name: SERVIDORES
+      interfaces:
+        - ip: 10.3.0.245
+          interface_ref: if1
+      items:
+        - name: BAD_ADDRESS_ALERT
+          type: ZABBIX_ACTIVE
+          key: 'logrt["C:\Windows\System32\dhcp\DhcpSrvLog-.*\.log","^13,",,,skip]'
+          value_type: LOG
+        - name: ESPAÇO_DISCO_DISPONIVEL
+          type: CALCULATED
+          key: vfs.fs.size
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/LINCKFS2-SJ_10.0.0.245/vfs.fs.size[E:,total]) - last(/LINCKFS2-SJ_10.0.0.245/vfs.fs.size[E:,used])'
+        - name: DISCO_EM_USO%
+          key: 'vfs.fs.size[E:,pused]'
+          delay: 5m
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/LINCKFS2-SJ_10.0.0.245/vfs.fs.size[E:,pused]) >= 70 and last(/LINCKFS2-SJ_10.0.0.245/vfs.fs.size[E:,pused]) <= 84'
+              name: '70% Ou + Do Disco Ocupado'
+              priority: WARNING
+            - expression: 'last(/LINCKFS2-SJ_10.0.0.245/vfs.fs.size[E:,pused]) >= 85 and last(/LINCKFS2-SJ_10.0.0.245/vfs.fs.size[E:,pused]) <= 89'
+              name: '85% Ou + Do Disco Ocupado'
+              priority: AVERAGE
+            - expression: 'last(/LINCKFS2-SJ_10.0.0.245/vfs.fs.size[E:,pused])>=90'
+              name: '90% Ou + Do Disco Ocupado'
+              priority: HIGH
+        - name: DISCO_TOTAL
+          key: 'vfs.fs.size[E:,total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: ESPAÇO_EM_USO
+          key: 'vfs.fs.size[E:,used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+      discovery_rules:
+        - name: 'Physical disks discovery'
+          key: 'perf_instance_en.discovery[PhysicalDisk]'
+          delay: 1h
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#DEVNAME}'
+                value: '{$VFS.DEV.DEVNAME.MATCHES}'
+              - macro: '{#DEVNAME}'
+                value: '{$VFS.DEV.DEVNAME.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+          description: 'Discovery of installed physical disks.'
+          interface_ref: if1
+          item_prototypes:
+            - name: '{#DEVNAME}: Disk utilization by idle time'
+              key: 'perf_counter_en["\PhysicalDisk({#DEVNAME})\% Idle Time",60]'
+              value_type: FLOAT
+              units: '%'
+              description: 'This item is the percentage of elapsed time that the selected disk drive was busy servicing read or writes requests based on idle time.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'return (100 - value)'
+              interface_ref: if1
+              tags:
+                - tag: component
+                  value: storage
+                - tag: disk
+                  value: '{#DEVNAME}'
+              trigger_prototypes:
+                - expression: 'min(/LINCKFS2-SJ_10.0.0.245/perf_counter_en["\PhysicalDisk({#DEVNAME})\% Idle Time",60],15m)>{$VFS.DEV.UTIL.MAX.WARN}'
+                  name: 'Windows: {#DEVNAME}: Disk is overloaded'
+                  event_name: 'Windows: {#DEVNAME}: Disk is overloaded (util > {$VFS.DEV.UTIL.MAX.WARN}% for 15m)'
+                  priority: WARNING
+                  description: 'The disk appears to be under heavy load.'
+                  manual_close: 'YES'
+                  dependencies:
+                    - name: 'Windows: {#DEVNAME}: Disk read request responses are too high'
+                      expression: 'min(/LINCKFS2-SJ_10.0.0.245/perf_counter_en["\PhysicalDisk({#DEVNAME})\Avg. Disk sec/Read",60],15m) > {$VFS.DEV.READ.AWAIT.WARN:"{#DEVNAME}"}'
+                    - name: 'Windows: {#DEVNAME}: Disk write request responses are too high'
+                      expression: 'min(/LINCKFS2-SJ_10.0.0.245/perf_counter_en["\PhysicalDisk({#DEVNAME})\Avg. Disk sec/Write",60],15m) > {$VFS.DEV.WRITE.AWAIT.WARN:"{#DEVNAME}"}'
+                  tags:
+                    - tag: scope
+                      value: performance
+            - name: '{#DEVNAME}: Average disk read queue length'
+              key: 'perf_counter_en["\PhysicalDisk({#DEVNAME})\Avg. Disk Read Queue Length",60]'
+              value_type: FLOAT
+              description: 'Average disk read queue, the number of requests outstanding on the disk at the time the performance data is collected.'
+              interface_ref: if1
+              tags:
+                - tag: component
+                  value: storage
+                - tag: disk
+                  value: '{#DEVNAME}'
+            - name: '{#DEVNAME}: Disk read request avg waiting time'
+              key: 'perf_counter_en["\PhysicalDisk({#DEVNAME})\Avg. Disk sec/Read",60]'
+              value_type: FLOAT
+              units: s
+              description: 'The average time for read requests issued to the device to be served. This includes the time spent by the requests in queue and the time spent servicing them.'
+              interface_ref: if1
+              tags:
+                - tag: component
+                  value: storage
+                - tag: disk
+                  value: '{#DEVNAME}'
+              trigger_prototypes:
+                - expression: 'min(/LINCKFS2-SJ_10.0.0.245/perf_counter_en["\PhysicalDisk({#DEVNAME})\Avg. Disk sec/Read",60],15m) > {$VFS.DEV.READ.AWAIT.WARN:"{#DEVNAME}"}'
+                  name: 'Windows: {#DEVNAME}: Disk read request responses are too high'
+                  event_name: 'Windows: {#DEVNAME}: Disk read request responses are too high (read > {$VFS.DEV.READ.AWAIT.WARN:"{#DEVNAME}"}s for 15m)'
+                  priority: WARNING
+                  description: 'This trigger might indicate the disk {#DEVNAME} saturation.'
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: performance
+            - name: '{#DEVNAME}: Disk write request avg waiting time'
+              key: 'perf_counter_en["\PhysicalDisk({#DEVNAME})\Avg. Disk sec/Write",60]'
+              value_type: FLOAT
+              units: s
+              description: 'The average time for write requests issued to the device to be served. This includes the time spent by the requests in queue and the time spent servicing them.'
+              interface_ref: if1
+              tags:
+                - tag: component
+                  value: storage
+                - tag: disk
+                  value: '{#DEVNAME}'
+              trigger_prototypes:
+                - expression: 'min(/LINCKFS2-SJ_10.0.0.245/perf_counter_en["\PhysicalDisk({#DEVNAME})\Avg. Disk sec/Write",60],15m) > {$VFS.DEV.WRITE.AWAIT.WARN:"{#DEVNAME}"}'
+                  name: 'Windows: {#DEVNAME}: Disk write request responses are too high'
+                  event_name: 'Windows: {#DEVNAME}: Disk write request responses are too high (write > {$VFS.DEV.WRITE.AWAIT.WARN:"{#DEVNAME}"}s for 15m)'
+                  priority: WARNING
+                  description: 'This trigger might indicate the disk {#DEVNAME} saturation.'
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: performance
+            - name: '{#DEVNAME}: Average disk write queue length'
+              key: 'perf_counter_en["\PhysicalDisk({#DEVNAME})\Avg. Disk Write Queue Length",60]'
+              value_type: FLOAT
+              description: 'Average disk write queue, the number of requests outstanding on the disk at the time the performance data is collected.'
+              interface_ref: if1
+              tags:
+                - tag: component
+                  value: storage
+                - tag: disk
+                  value: '{#DEVNAME}'
+            - name: '{#DEVNAME}: Disk average queue size (avgqu-sz)'
+              key: 'perf_counter_en["\PhysicalDisk({#DEVNAME})\Current Disk Queue Length",60]'
+              value_type: FLOAT
+              description: 'The current average disk queue; the number of requests outstanding on the disk while the performance data is being collected.'
+              interface_ref: if1
+              tags:
+                - tag: component
+                  value: storage
+                - tag: disk
+                  value: '{#DEVNAME}'
+            - name: '{#DEVNAME}: Disk read rate'
+              key: 'perf_counter_en["\PhysicalDisk({#DEVNAME})\Disk Reads/sec",60]'
+              value_type: FLOAT
+              units: '!r/s'
+              description: 'Rate of read operations on the disk.'
+              interface_ref: if1
+              tags:
+                - tag: component
+                  value: storage
+                - tag: disk
+                  value: '{#DEVNAME}'
+            - name: '{#DEVNAME}: Disk write rate'
+              key: 'perf_counter_en["\PhysicalDisk({#DEVNAME})\Disk Writes/sec",60]'
+              value_type: FLOAT
+              units: '!w/s'
+              description: 'Rate of write operations on the disk.'
+              interface_ref: if1
+              tags:
+                - tag: component
+                  value: storage
+                - tag: disk
+                  value: '{#DEVNAME}'
+          graph_prototypes:
+            - name: '{#DEVNAME}: Disk average queue length'
+              graph_items:
+                - color: 199C0D
+                  item:
+                    host: LINCKFS2-SJ_10.0.0.245
+                    key: 'perf_counter_en["\PhysicalDisk({#DEVNAME})\Avg. Disk Read Queue Length",60]'
+                - sortorder: '1'
+                  color: F63100
+                  item:
+                    host: LINCKFS2-SJ_10.0.0.245
+                    key: 'perf_counter_en["\PhysicalDisk({#DEVNAME})\Avg. Disk Write Queue Length",60]'
+            - name: '{#DEVNAME}: Disk average waiting time'
+              graph_items:
+                - color: 199C0D
+                  item:
+                    host: LINCKFS2-SJ_10.0.0.245
+                    key: 'perf_counter_en["\PhysicalDisk({#DEVNAME})\Avg. Disk sec/Read",60]'
+                - sortorder: '1'
+                  drawtype: GRADIENT_LINE
+                  color: F63100
+                  item:
+                    host: LINCKFS2-SJ_10.0.0.245
+                    key: 'perf_counter_en["\PhysicalDisk({#DEVNAME})\Avg. Disk sec/Write",60]'
+            - name: '{#DEVNAME}: Disk read/write rates'
+              graph_items:
+                - color: 199C0D
+                  item:
+                    host: LINCKFS2-SJ_10.0.0.245
+                    key: 'perf_counter_en["\PhysicalDisk({#DEVNAME})\Disk Reads/sec",60]'
+                - sortorder: '1'
+                  drawtype: GRADIENT_LINE
+                  color: F63100
+                  item:
+                    host: LINCKFS2-SJ_10.0.0.245
+                    key: 'perf_counter_en["\PhysicalDisk({#DEVNAME})\Disk Writes/sec",60]'
+            - name: '{#DEVNAME}: Disk utilization and queue'
+              graph_items:
+                - color: 199C0D
+                  yaxisside: RIGHT
+                  item:
+                    host: LINCKFS2-SJ_10.0.0.245
+                    key: 'perf_counter_en["\PhysicalDisk({#DEVNAME})\Current Disk Queue Length",60]'
+                - sortorder: '1'
+                  drawtype: GRADIENT_LINE
+                  color: F63100
+                  item:
+                    host: LINCKFS2-SJ_10.0.0.245
+                    key: 'perf_counter_en["\PhysicalDisk({#DEVNAME})\% Idle Time",60]'
+          preprocessing:
+            - type: STR_REPLACE
+              parameters:
+                - '{#INSTANCE}'
+                - '{#DEVNAME}'
+        - name: 'Windows services discovery'
+          key: service.discovery
+          delay: 1h
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#SERVICE.NAME}'
+                value: '{$SERVICE.NAME.MATCHES}'
+              - macro: '{#SERVICE.NAME}'
+                value: '{$SERVICE.NAME.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+              - macro: '{#SERVICE.STARTUPNAME}'
+                value: '{$SERVICE.STARTUPNAME.MATCHES}'
+              - macro: '{#SERVICE.STARTUPNAME}'
+                value: '{$SERVICE.STARTUPNAME.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+          description: 'Used for the discovery of Windows services of different types as defined in the template''s macros.'
+          interface_ref: if1
+          item_prototypes:
+            - name: 'State of service "{#SERVICE.NAME}" ({#SERVICE.DISPLAYNAME})'
+              key: 'service.info["{#SERVICE.NAME}",state]'
+              interface_ref: if1
+              tags:
+                - tag: component
+                  value: system
+                - tag: name
+                  value: '{#SERVICE.DISPLAYNAME}'
+                - tag: service
+                  value: '{#SERVICE.NAME}'
+              trigger_prototypes:
+                - expression: 'min(/LINCKFS2-SJ_10.0.0.245/service.info["{#SERVICE.NAME}",state],#3)<>0'
+                  name: 'Windows: "{#SERVICE.NAME}" ({#SERVICE.DISPLAYNAME}) is not running'
+                  event_name: 'Windows: "{#SERVICE.NAME}" ({#SERVICE.DISPLAYNAME}) is not running (startup type {#SERVICE.STARTUPNAME})'
+                  priority: AVERAGE
+                  description: 'The service has a state other than "Running" for the last three times.'
+                  tags:
+                    - tag: scope
+                      value: notice
+    - host: LINCKFS2_10.0.1.9_D
+      name: LINCKFS2_10.0.1.9_D
+      groups:
+        - name: SERVIDORES
+      interfaces:
+        - ip: 10.0.1.9
+          interface_ref: if1
+      items:
+        - name: 'ALERTA! BAD_ADDRESS'
+          type: ZABBIX_ACTIVE
+          key: dhcp.badaddress
+          history: 7d
+          triggers:
+            - expression: last(/LINCKFS2_10.0.1.9_D/dhcp.badaddress)=1
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: last(/LINCKFS2_10.0.1.9_D/dhcp.badaddress)=0
+              name: 'ALERTA!!! BAD_ADDRESS NA REDE'
+              priority: HIGH
+        - name: Trafego
+          key: net.if.discovery
+          delay: 30s
+          history: 90d
+          value_type: TEXT
+          interface_ref: if1
+        - name: Traffic_in
+          key: 'net.if.in[Broadcom NetXtreme Gigabit Ethernet]'
+          delay: 30s
+          history: 90d
+          units: bps
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '8'
+            - type: CHANGE_PER_SECOND
+          interface_ref: if1
+        - name: Traffic_out
+          key: 'net.if.out[Broadcom NetXtreme Gigabit Ethernet]'
+          delay: 30s
+          history: 90d
+          units: bps
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '8'
+            - type: CHANGE_PER_SECOND
+          interface_ref: if1
+        - name: Traffic_total
+          key: 'net.if.total[Broadcom NetXtreme Gigabit Ethernet]'
+          delay: 30s
+          history: 90d
+          units: bps
+          preprocessing:
+            - type: MULTIPLIER
+              parameters:
+                - '8'
+            - type: CHANGE_PER_SECOND
+          interface_ref: if1
+        - name: ESPAÇO_DISCO_DISPONIVEL
+          type: CALCULATED
+          key: vfs.fs.size
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/LINCKFS2_10.0.1.9_D/vfs.fs.size[D:,total]) - last(/LINCKFS2_10.0.1.9_D/vfs.fs.size[D:,used])'
+        - name: '%_EM_USO'
+          key: 'vfs.fs.size[D:,pused]'
+          delay: 5m
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/LINCKFS2_10.0.1.9_D/vfs.fs.size[D:,pused]) >= 70 and last(/LINCKFS2_10.0.1.9_D/vfs.fs.size[D:,pused]) <= 84'
+              name: '70% Ou + Do Disco Ocupado'
+              priority: WARNING
+            - expression: 'last(/LINCKFS2_10.0.1.9_D/vfs.fs.size[D:,pused]) >= 85 and last(/LINCKFS2_10.0.1.9_D/vfs.fs.size[D:,pused]) <= 89'
+              name: '85% Ou + Do Disco Ocupado'
+              priority: AVERAGE
+            - expression: 'last(/LINCKFS2_10.0.1.9_D/vfs.fs.size[D:,pused])>=90'
+              name: '90% Ou + Do Disco Ocupado'
+              priority: HIGH
+        - name: DISCO_TOTAL
+          key: 'vfs.fs.size[D:,total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: DISCO_EM_USO
+          key: 'vfs.fs.size[D:,used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: PercentualUsoRam
+          key: 'vm.memory.size[pused]'
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+    - host: LINCKFS2_10.0.1.9_E
+      name: LINCKFS2_10.0.1.9_E
+      groups:
+        - name: SERVIDORES
+      interfaces:
+        - ip: 10.0.1.9
+          interface_ref: if1
+      items:
+        - name: ESPAÇO_DISCO_DISPONIVEL
+          type: CALCULATED
+          key: vfs.fs.size
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/LINCKFS2_10.0.1.9_E/vfs.fs.size[E:,total]) - last(/LINCKFS2_10.0.1.9_E/vfs.fs.size[E:,used])'
+        - name: '%_EM_USO'
+          key: 'vfs.fs.size[E:,pused]'
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/LINCKFS2_10.0.1.9_E/vfs.fs.size[E:,pused]) >= 70 and last(/LINCKFS2_10.0.1.9_E/vfs.fs.size[E:,pused]) <= 84'
+              name: '70% Ou + Do Disco Ocupado'
+              priority: WARNING
+            - expression: 'last(/LINCKFS2_10.0.1.9_E/vfs.fs.size[E:,pused]) >= 85 and last(/LINCKFS2_10.0.1.9_E/vfs.fs.size[E:,pused]) <= 89'
+              name: '85% Ou + Do Disco Ocupado'
+              priority: AVERAGE
+            - expression: 'last(/LINCKFS2_10.0.1.9_E/vfs.fs.size[E:,pused])>=90'
+              name: '90% Ou + Do Disco Ocupado'
+              priority: HIGH
+        - name: DISCO_TOTAL
+          key: 'vfs.fs.size[E:,total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: ESPAÇO_EM_USO
+          key: 'vfs.fs.size[E:,used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: PercentualUsoRam
+          key: 'vm.memory.size[pused]'
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+    - host: LINCKNFE_10.0.0.211
+      name: LINCKNFE_10.0.0.211
+      groups:
+        - name: SERVIDORES
+      interfaces:
+        - ip: 10.0.0.211
+          interface_ref: if1
+      items:
+        - name: APACHE
+          key: 'service.info["Apache2.2",state]'
+          history: 90d
+          value_type: TEXT
+          preprocessing:
+            - type: STR_REPLACE
+              parameters:
+                - '0'
+                - Running
+            - type: STR_REPLACE
+              parameters:
+                - '6'
+                - Stopped
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/LINCKNFE_10.0.0.211/service.info["Apache2.2",state])="Stopped"'
+              name: 'Apache Não Está Rodando'
+              priority: HIGH
+        - name: DFeServico
+          key: 'service.info["DFeServico",state]'
+          history: 90d
+          value_type: TEXT
+          preprocessing:
+            - type: STR_REPLACE
+              parameters:
+                - '0'
+                - Running
+            - type: STR_REPLACE
+              parameters:
+                - '6'
+                - Stopped
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/LINCKNFE_10.0.0.211/service.info["DFeServico",state])="Stopped"'
+              name: 'Monitor Doc. Fisc. Elet. está parado'
+              priority: HIGH
+        - name: SrvEMonitor
+          key: 'service.info["SrvEMonitor",state]'
+          history: 90d
+          value_type: TEXT
+          status: DISABLED
+          preprocessing:
+            - type: STR_REPLACE
+              parameters:
+                - '0'
+                - Running
+            - type: STR_REPLACE
+              parameters:
+                - '6'
+                - Stopped
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/LINCKNFE_10.0.0.211/service.info["SrvEMonitor",state])="Stopped"'
+              name: 'Monitor Email NFe está Parado'
+              priority: HIGH
+        - name: USUARIOS_CONECTADOS
+          key: system.users.num
+          history: 90d
+          interface_ref: if1
+        - name: ESPAÇO_DISCO_DISPONIVEL
+          type: CALCULATED
+          key: vfs.fs.size
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/LINCKNFE_10.0.0.211/vfs.fs.size[C:,total]) - last(/LINCKNFE_10.0.0.211/vfs.fs.size[C:,used])'
+        - name: DISCO_EM_USO%
+          key: 'vfs.fs.size[C:,pused]'
+          delay: 5m
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/LINCKNFE_10.0.0.211/vfs.fs.size[C:,pused]) >= 70 and last(/LINCKNFE_10.0.0.211/vfs.fs.size[C:,pused]) <= 84'
+              name: '70% Ou + Do Disco Ocupado'
+              priority: WARNING
+            - expression: 'last(/LINCKNFE_10.0.0.211/vfs.fs.size[C:,pused]) >= 84 and last(/LINCKNFE_10.0.0.211/vfs.fs.size[C:,pused]) <= 89'
+              name: '85% Ou + Do Disco Ocupado'
+              priority: AVERAGE
+            - expression: 'last(/LINCKNFE_10.0.0.211/vfs.fs.size[C:,pused])>=90'
+              name: '90% Ou + Do Disco Ocupado'
+              priority: HIGH
+        - name: DISCO_TOTAL
+          key: 'vfs.fs.size[C:,total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: ESPAÇO_EM_USO
+          key: 'vfs.fs.size[C:,used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: PercentualUsoRam
+          key: 'vm.memory.size[pused]'
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+        - name: RAM_TOTAL
+          key: 'vm.memory.size[total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: RAM_EM_USO
+          key: 'vm.memory.size[used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: RAM_DISPONIVEL
+          type: CALCULATED
+          key: vm.memory.util
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/LINCKNFE_10.0.0.211/vm.memory.size[total]) - last(/LINCKNFE_10.0.0.211/vm.memory.size[used])'
+    - host: LINCKNFSE_10.0.1.19
+      name: LINCKNFSE_10.0.1.19
+      groups:
+        - name: SERVIDORES
+      interfaces:
+        - ip: 10.0.1.19
+          interface_ref: if1
+      items:
+        - name: IIS
+          key: 'service.info["IISADMIN",state]'
+          history: 90d
+          value_type: TEXT
+          preprocessing:
+            - type: STR_REPLACE
+              parameters:
+                - '6'
+                - Stopped
+            - type: STR_REPLACE
+              parameters:
+                - '0'
+                - Running
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/LINCKNFSE_10.0.1.19/service.info["IISADMIN",state])="Stopped"'
+              name: 'IIS Não Está Rodando'
+              priority: HIGH
+        - name: USUARIOS_CONECTADOS
+          key: system.users.num
+          history: 90d
+          interface_ref: if1
+        - name: ESPAÇO_DISCO_DISPONIVEL
+          type: CALCULATED
+          key: vfs.fs.size
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/LINCKNFSE_10.0.1.19/vfs.fs.size[C:,total]) - last(/LINCKNFSE_10.0.1.19/vfs.fs.size[C:,used])'
+        - name: DISCO_EM_USO%
+          key: 'vfs.fs.size[C:,pused]'
+          delay: 5m
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/LINCKNFSE_10.0.1.19/vfs.fs.size[C:,pused]) >= 70 and last(/LINCKNFSE_10.0.1.19/vfs.fs.size[C:,pused]) <= 84'
+              name: '70% Ou + Do Disco Ocupado'
+              priority: WARNING
+            - expression: 'last(/LINCKNFSE_10.0.1.19/vfs.fs.size[C:,pused]) >= 85 and last(/LINCKNFSE_10.0.1.19/vfs.fs.size[C:,pused]) <= 89'
+              name: '85% Ou + Do Disco Ocupado'
+              priority: AVERAGE
+            - expression: 'last(/LINCKNFSE_10.0.1.19/vfs.fs.size[C:,pused])>=90'
+              name: '90% Ou + Do Disco Ocupado'
+              priority: HIGH
+        - name: DISCO_TOTAL
+          key: 'vfs.fs.size[C:,total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: ESPAÇO_EM_USO
+          key: 'vfs.fs.size[C:,used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: PercentualUsoRam
+          key: 'vm.memory.size[pused]'
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+        - name: RAM_TOTAL
+          key: 'vm.memory.size[total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: RAM_EM_USO
+          key: 'vm.memory.size[used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: RAM_DISPONIVEL
+          type: CALCULATED
+          key: vm.memory.util
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/LINCKNFSE_10.0.1.19/vm.memory.size[total]) - last(/LINCKNFSE_10.0.1.19/vm.memory.size[used])'
+    - host: LINCKREINF_10.0.1.28
+      name: LINCKREINF_10.0.1.28
+      groups:
+        - name: SERVIDORES
+      interfaces:
+        - ip: 10.0.1.28
+          interface_ref: if1
+      items:
+        - name: APACHE
+          key: 'service.info["Tomcat7",state]'
+          history: 90d
+          value_type: TEXT
+          preprocessing:
+            - type: STR_REPLACE
+              parameters:
+                - '6'
+                - Stopped
+            - type: STR_REPLACE
+              parameters:
+                - '0'
+                - Running
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/LINCKREINF_10.0.1.28/service.info["Tomcat7",state])="Stopped"'
+              name: APACHE
+              priority: HIGH
+        - name: USUARIOS_CONECTADOS
+          key: system.users.num
+          history: 90d
+          interface_ref: if1
+        - name: ESPAÇO_DISCO_DISPONIVEL
+          type: CALCULATED
+          key: vfs.fs.size
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/LINCKREINF_10.0.1.28/vfs.fs.size[C:,total]) - last(/LINCKREINF_10.0.1.28/vfs.fs.size[C:,used])'
+        - name: DISCO_EM_USO%
+          key: 'vfs.fs.size[C:,pused]'
+          delay: 5m
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/LINCKREINF_10.0.1.28/vfs.fs.size[C:,pused]) >= 70 and last(/LINCKREINF_10.0.1.28/vfs.fs.size[C:,pused]) <= 84'
+              name: '70% Ou + Do Disco Ocupado'
+              priority: WARNING
+            - expression: 'last(/LINCKREINF_10.0.1.28/vfs.fs.size[C:,pused]) >= 85 and last(/LINCKREINF_10.0.1.28/vfs.fs.size[C:,pused]) <= 89'
+              name: '85% Ou + Do Disco Ocupado'
+              priority: AVERAGE
+            - expression: 'last(/LINCKREINF_10.0.1.28/vfs.fs.size[C:,pused])>=90'
+              name: '90% Ou + Do Disco Ocupado'
+              priority: HIGH
+        - name: DISCO_TOTAL
+          key: 'vfs.fs.size[C:,total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: ESPAÇO_EM_USO
+          key: 'vfs.fs.size[C:,used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: PercentualUsoRam
+          key: 'vm.memory.size[pused]'
+          delay: 5m
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+        - name: RAM_TOTAL
+          key: 'vm.memory.size[total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: RAM_EM_USO
+          key: 'vm.memory.size[used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: RAM_DISPONIVEL
+          type: CALCULATED
+          key: vm.memory.util
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/LINCKREINF_10.0.1.28/vm.memory.size[total]) - last(/LINCKREINF_10.0.1.28/vm.memory.size[used])'
+    - host: LINCKTS2_10.0.1.22
+      name: LINCKTS2_10.0.1.22
+      groups:
+        - name: SERVIDORES
+      interfaces:
+        - ip: 10.0.1.22
+          interface_ref: if1
+      items:
+        - name: RDMS
+          key: 'service.info["RDMS",state]'
+          history: 90d
+          value_type: TEXT
+          preprocessing:
+            - type: STR_REPLACE
+              parameters:
+                - '6'
+                - Stopped
+            - type: STR_REPLACE
+              parameters:
+                - '255'
+                - Running
+          interface_ref: if1
+        - name: TScPubRPC
+          key: 'service.info["TScPubRPC",state]'
+          history: 90d
+          value_type: TEXT
+          preprocessing:
+            - type: STR_REPLACE
+              parameters:
+                - '6'
+                - Stopped
+            - type: STR_REPLACE
+              parameters:
+                - '255'
+                - Running
+          interface_ref: if1
+        - name: USUARIOS_CONECTADOS
+          key: system.users.num
+          delay: 30s
+          history: 90d
+          interface_ref: if1
+        - name: ESPAÇO_DISCO_DISPONIVEL
+          type: CALCULATED
+          key: vfs.fs.size
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/LINCKTS2_10.0.1.22/vfs.fs.size[C:,total]) - last(/LINCKTS2_10.0.1.22/vfs.fs.size[C:,used])'
+        - name: DISCO_EM_USO%
+          key: 'vfs.fs.size[C:,pused]'
+          delay: 5m
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/LINCKTS2_10.0.1.22/vfs.fs.size[C:,pused]) >= 70 and last(/LINCKTS2_10.0.1.22/vfs.fs.size[C:,pused]) <= 84'
+              name: '70% Ou + Do Disco Ocupado'
+              priority: WARNING
+            - expression: 'last(/LINCKTS2_10.0.1.22/vfs.fs.size[C:,pused]) >= 85 and last(/LINCKTS2_10.0.1.22/vfs.fs.size[C:,pused]) <= 89'
+              name: '85% Ou + Do Disco Ocupado'
+              priority: AVERAGE
+            - expression: 'last(/LINCKTS2_10.0.1.22/vfs.fs.size[C:,pused])>=90'
+              name: '90% Ou + Do Disco Ocupado'
+              priority: HIGH
+        - name: DISCO_TOTAL
+          key: 'vfs.fs.size[C:,total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: ESPAÇO_EM_USO
+          key: 'vfs.fs.size[C:,used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: PercentualUsoRam
+          key: 'vm.memory.size[pused]'
+          delay: 30s
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/LINCKTS2_10.0.1.22/vm.memory.size[pused]) >= 85 and last(/LINCKTS2_10.0.1.22/vm.memory.size[pused]) <= 89'
+              name: '85% DE RAM EM USO'
+              priority: WARNING
+            - expression: 'last(/LINCKTS2_10.0.1.22/vm.memory.size[pused]) >= 90 and last(/LINCKTS2_10.0.1.22/vm.memory.size[pused]) <= 94'
+              name: '90% OU + DE RAM EM USO'
+              priority: HIGH
+            - expression: 'last(/LINCKTS2_10.0.1.22/vm.memory.size[pused]) >= 95 and last(/LINCKTS2_10.0.1.22/vm.memory.size[pused]) <= 99'
+              name: '95% DE RAM EM USO'
+              priority: DISASTER
+        - name: RAM_TOTAL
+          key: 'vm.memory.size[total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: RAM_EM_USO
+          key: 'vm.memory.size[used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: RAM_DISPONIVEL
+          type: CALCULATED
+          key: vm.memory.util
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/LINCKTS2_10.0.1.22/vm.memory.size[total]) - last(/LINCKTS2_10.0.1.22/vm.memory.size[used])'
+    - host: LINCKTS4_10.0.1.16
+      name: LINCKTS4_10.0.1.16
+      groups:
+        - name: SERVIDORES
+      interfaces:
+        - ip: 10.0.1.16
+          interface_ref: if1
+      items:
+        - name: AGENDA_PROCESSOS
+          key: 'proc.num[AgendaProcessos.exe]'
+          delay: 15s
+          history: 90d
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/LINCKTS4_10.0.1.16/proc.num[AgendaProcessos.exe])>1'
+              name: '+ DE 1 AGENDADOR EM EXECUÇÃO'
+              event_name: '+ DE 1 AGENDADOR EM EXECUÇÃO'
+              priority: WARNING
+            - expression: 'last(/LINCKTS4_10.0.1.16/proc.num[AgendaProcessos.exe])=0'
+              name: 'AGENDADOR PARADO'
+              priority: HIGH
+        - name: RDMS
+          key: 'service.info["RDMS",state]'
+          history: 90d
+          value_type: TEXT
+          preprocessing:
+            - type: STR_REPLACE
+              parameters:
+                - '6'
+                - Stopped
+            - type: STR_REPLACE
+              parameters:
+                - '0'
+                - Running
+          interface_ref: if1
+        - name: TScPubRPC
+          key: 'service.info["TScPubRPC",state]'
+          history: 90d
+          value_type: TEXT
+          preprocessing:
+            - type: STR_REPLACE
+              parameters:
+                - '6'
+                - Stopped
+            - type: STR_REPLACE
+              parameters:
+                - '0'
+                - Running
+          interface_ref: if1
+        - name: USUARIOS_CONECTADOS
+          key: system.users.num
+          delay: 30s
+          history: 90d
+          interface_ref: if1
+        - name: ESPAÇO_DISCO_DISPONIVEL
+          type: CALCULATED
+          key: vfs.fs.size
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/LINCKTS2_10.0.1.22/vfs.fs.size[C:,total]) - last(/LINCKTS2_10.0.1.22/vfs.fs.size[C:,used])'
+        - name: DISCO_EM_USO%
+          key: 'vfs.fs.size[C:,pused]'
+          delay: 5m
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/LINCKTS4_10.0.1.16/vfs.fs.size[C:,pused]) >= 70 and last(/LINCKTS4_10.0.1.16/vfs.fs.size[C:,pused]) <= 84'
+              name: '70% Ou + Do Disco Ocupado'
+              priority: WARNING
+            - expression: 'last(/LINCKTS4_10.0.1.16/vfs.fs.size[C:,pused]) >= 85 and last(/LINCKTS4_10.0.1.16/vfs.fs.size[C:,pused]) <= 89'
+              name: '85% Ou + Do Disco Ocupado'
+              priority: AVERAGE
+            - expression: 'last(/LINCKTS4_10.0.1.16/vfs.fs.size[C:,pused])>=90'
+              name: '90% Ou + Do Disco Ocupado'
+              priority: HIGH
+        - name: DISCO_TOTAL
+          key: 'vfs.fs.size[C:,total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: ESPAÇO_EM_USO
+          key: 'vfs.fs.size[C:,used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: PercentualUsoRam
+          key: 'vm.memory.size[pused]'
+          delay: 30s
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/LINCKTS4_10.0.1.16/vm.memory.size[pused]) >= 85 and last(/LINCKTS4_10.0.1.16/vm.memory.size[pused]) <= 89'
+              name: '85% DE RAM EM USO'
+              priority: AVERAGE
+            - expression: 'last(/LINCKTS4_10.0.1.16/vm.memory.size[pused]) >= 90 and last(/LINCKTS4_10.0.1.16/vm.memory.size[pused]) <= 94'
+              name: '90% OU + DE RAM EM USO'
+              priority: HIGH
+            - expression: 'last(/LINCKTS4_10.0.1.16/vm.memory.size[pused]) >= 95 and last(/LINCKTS4_10.0.1.16/vm.memory.size[pused]) <= 99'
+              name: '95% DE RAM EM USO'
+              priority: DISASTER
+        - name: RAM_TOTAL
+          key: 'vm.memory.size[total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: RAM_EM_USO
+          key: 'vm.memory.size[used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: RAM_DISPONIVEL
+          type: CALCULATED
+          key: vm.memory.util
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/LINCKTS4_10.0.1.16/vm.memory.size[total]) - last(/LINCKTS4_10.0.1.16/vm.memory.size[used])'
+    - host: LINX_DMS_HML_10.0.1.23
+      name: LINX_DMS_HML_10.0.1.23
+      groups:
+        - name: SERVIDORES
+      interfaces:
+        - ip: 10.0.1.23
+          interface_ref: if1
+      items:
+        - name: IISADMIN
+          key: 'service.info["IISADMIN",state]'
+          history: 90d
+          value_type: TEXT
+          preprocessing:
+            - type: STR_REPLACE
+              parameters:
+                - '6'
+                - Stopped
+            - type: STR_REPLACE
+              parameters:
+                - '0'
+                - Running
+          interface_ref: if1
+        - name: RDMS
+          key: 'service.info["RDMS",state]'
+          history: 90d
+          value_type: TEXT
+          preprocessing:
+            - type: STR_REPLACE
+              parameters:
+                - '6'
+                - Stopped
+            - type: STR_REPLACE
+              parameters:
+                - '255'
+                - Running
+          interface_ref: if1
+        - name: TScPubRPC
+          key: 'service.info["TScPubRPC",state]'
+          history: 90d
+          value_type: TEXT
+          preprocessing:
+            - type: STR_REPLACE
+              parameters:
+                - '6'
+                - Stopped
+            - type: STR_REPLACE
+              parameters:
+                - '255'
+                - Running
+          interface_ref: if1
+        - name: USUARIOS_CONECTADOS
+          key: system.users.num
+          history: 90d
+          interface_ref: if1
+        - name: ESPAÇO_DISCO_DISPONIVEL
+          type: CALCULATED
+          key: vfs.fs.size
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/LINX_DMS_HML_10.0.1.23/vfs.fs.size[C:,total]) - last(/LINX_DMS_HML_10.0.1.23/vfs.fs.size[C:,used])'
+        - name: DISCO_EM_USO%
+          key: 'vfs.fs.size[C:,pused]'
+          delay: 5m
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/LINX_DMS_HML_10.0.1.23/vfs.fs.size[C:,pused]) >= 70 and last(/LINX_DMS_HML_10.0.1.23/vfs.fs.size[C:,pused]) <= 84'
+              name: '70% Ou + Do Disco Ocupado'
+              priority: WARNING
+            - expression: 'last(/LINX_DMS_HML_10.0.1.23/vfs.fs.size[C:,pused]) >= 85 and last(/LINX_DMS_HML_10.0.1.23/vfs.fs.size[C:,pused]) <= 89'
+              name: '85% Ou + Do Disco Ocupado'
+              priority: AVERAGE
+            - expression: 'last(/LINX_DMS_HML_10.0.1.23/vfs.fs.size[C:,pused])>=90'
+              name: '90% Ou + Do Disco Ocupado'
+              priority: HIGH
+        - name: DISCO_TOTAL
+          key: 'vfs.fs.size[C:,total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: ESPAÇO_EM_USO
+          key: 'vfs.fs.size[C:,used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: PercentualUsoRam
+          key: 'vm.memory.size[pused]'
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+        - name: RAM_TOTAL
+          key: 'vm.memory.size[total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: RAM_EM_USO
+          key: 'vm.memory.size[used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: RAM_DISPONIVEL
+          type: CALCULATED
+          key: vm.memory.util
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/LINX_DMS_HML_10.0.1.23/vm.memory.size[total]) - last(/LINX_DMS_HML_10.0.1.23/vm.memory.size[used])'
+    - host: LINX_DMS_PRD_10.0.1.24
+      name: LINX_DMS_PRD_10.0.1.24
+      groups:
+        - name: SERVIDORES
+      interfaces:
+        - ip: 10.0.1.24
+          interface_ref: if1
+      items:
+        - name: IISADMIN
+          key: 'service.info["IISADMIN",state]'
+          history: 90d
+          value_type: TEXT
+          preprocessing:
+            - type: STR_REPLACE
+              parameters:
+                - '6'
+                - Stopped
+            - type: STR_REPLACE
+              parameters:
+                - '0'
+                - Running
+          interface_ref: if1
+        - name: RDMS
+          key: 'service.info["RDMS",state]'
+          history: 90d
+          value_type: TEXT
+          preprocessing:
+            - type: STR_REPLACE
+              parameters:
+                - '6'
+                - Stopped
+            - type: STR_REPLACE
+              parameters:
+                - '255'
+                - Running
+          interface_ref: if1
+        - name: USUARIOS_CONECTADOS
+          key: system.users.num
+          history: 90d
+          interface_ref: if1
+        - name: ESPAÇO_DISCO_DISPONIVEL
+          type: CALCULATED
+          key: vfs.fs.size
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/LINX_DMS_PRD_10.0.1.24/vfs.fs.size[C:,total]) - last(/LINX_DMS_PRD_10.0.1.24/vfs.fs.size[C:,used])'
+        - name: DISCO_EM_USO%
+          key: 'vfs.fs.size[C:,pused]'
+          delay: 5m
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/LINX_DMS_PRD_10.0.1.24/vfs.fs.size[C:,pused]) >= 70 and last(/LINX_DMS_PRD_10.0.1.24/vfs.fs.size[C:,pused]) <= 84'
+              name: '70% Ou + Do Disco Ocupado'
+              priority: WARNING
+            - expression: 'last(/LINX_DMS_PRD_10.0.1.24/vfs.fs.size[C:,pused]) >= 85 and last(/LINX_DMS_PRD_10.0.1.24/vfs.fs.size[C:,pused]) <= 89'
+              name: '85% Ou + Do Disco Ocupado'
+              priority: AVERAGE
+            - expression: 'last(/LINX_DMS_PRD_10.0.1.24/vfs.fs.size[C:,pused])>=90'
+              name: '90% Ou + Do Disco Ocupado'
+              priority: HIGH
+        - name: DISCO_TOTAL
+          key: 'vfs.fs.size[C:,total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: ESPAÇO_EM_USO
+          key: 'vfs.fs.size[C:,used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: PercentualUsoRam
+          key: 'vm.memory.size[pused]'
+          delay: 5m
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+        - name: RAM_TOTAL
+          key: 'vm.memory.size[total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: RAM_EM_USO
+          key: 'vm.memory.size[used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: RAM_DISPONIVEL
+          type: CALCULATED
+          key: vm.memory.util
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/LINX_DMS_PRD_10.0.1.24/vm.memory.size[total]) - last(/LINX_DMS_PRD_10.0.1.24/vm.memory.size[used])'
+    - host: LINX_DMS_PRE_10.0.1.211
+      name: LINX_DMS_PRE_10.0.1.211
+      groups:
+        - name: SERVIDORES
+      interfaces:
+        - ip: 150.0.1.211
+          interface_ref: if1
+      items:
+        - name: AGENDA_PROCESSOS
+          key: 'proc.num[ImprimeRomaneio.exe]'
+          delay: 10s
+          history: 90d
+          status: DISABLED
+          interface_ref: if1
+        - name: IISADMIN
+          key: 'service.info["IISADMIN",state]'
+          delay: 30s
+          history: 90d
+          value_type: TEXT
+          preprocessing:
+            - type: STR_REPLACE
+              parameters:
+                - '6'
+                - Stopped
+            - type: STR_REPLACE
+              parameters:
+                - '0'
+                - Running
+          interface_ref: if1
+        - name: RDMS
+          key: 'service.info["RDMS",state]'
+          delay: 30s
+          history: 90d
+          value_type: TEXT
+          preprocessing:
+            - type: STR_REPLACE
+              parameters:
+                - '6'
+                - Stopped
+            - type: STR_REPLACE
+              parameters:
+                - '255'
+                - Running
+          interface_ref: if1
+        - name: TScPubRPC
+          key: 'service.info["TScPubRPC",state]'
+          delay: 30s
+          history: 90d
+          value_type: TEXT
+          preprocessing:
+            - type: STR_REPLACE
+              parameters:
+                - '6'
+                - Stopped
+            - type: STR_REPLACE
+              parameters:
+                - '255'
+                - Running
+          interface_ref: if1
+        - name: USUARIOS_CONECTADOS
+          key: system.users.num
+          delay: 30s
+          history: 90d
+          interface_ref: if1
+        - name: ESPAÇO_DISCO_DISPONIVEL
+          type: CALCULATED
+          key: vfs.fs.size
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/LINX_DMS_HML_10.0.1.23/vfs.fs.size[C:,total]) - last(/LINX_DMS_HML_10.0.1.23/vfs.fs.size[C:,used])'
+        - name: DISCO_EM_USO%
+          key: 'vfs.fs.size[C:,pused]'
+          delay: 5m
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/LINX_DMS_PRE_10.0.1.211/vfs.fs.size[C:,pused]) >= 70 and last(/LINX_DMS_PRE_10.0.1.211/vfs.fs.size[C:,pused]) <= 84'
+              name: '70% Ou + Do Disco Ocupado'
+              priority: WARNING
+            - expression: 'last(/LINX_DMS_PRE_10.0.1.211/vfs.fs.size[C:,pused]) >= 85 and last(/LINX_DMS_PRE_10.0.1.211/vfs.fs.size[C:,pused]) <= 89'
+              name: '85% Ou + Do Disco Ocupado'
+              priority: AVERAGE
+            - expression: 'last(/LINX_DMS_PRE_10.0.1.211/vfs.fs.size[C:,pused])>=90'
+              name: '90% Ou + Do Disco Ocupado'
+              priority: HIGH
+        - name: DISCO_TOTAL
+          key: 'vfs.fs.size[C:,total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: ESPAÇO_EM_USO
+          key: 'vfs.fs.size[C:,used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: PercentualUsoRam
+          key: 'vm.memory.size[pused]'
+          delay: 5m
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+        - name: RAM_TOTAL
+          key: 'vm.memory.size[total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: RAM_EM_USO
+          key: 'vm.memory.size[used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: RAM_DISPONIVEL
+          type: CALCULATED
+          key: vm.memory.util
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/LINX_DMS_HML_10.0.1.23/vm.memory.size[total]) - last(/LINX_DMS_HML_10.0.1.23/vm.memory.size[used])'
+    - host: NFCE_JOIN_10.0.1.30
+      name: NFCE_JOIN_10.0.1.30
+      groups:
+        - name: SERVIDORES
+      interfaces:
+        - ip: 10.0.1.30
+          interface_ref: if1
+      items:
+        - name: FISCAL_FLOW
+          key: 'service.info["Fiscal Flow Client",state]'
+          history: 90d
+          value_type: TEXT
+          preprocessing:
+            - type: STR_REPLACE
+              parameters:
+                - '0'
+                - Running
+            - type: STR_REPLACE
+              parameters:
+                - '6'
+                - Stopped
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/NFCE_JOIN_10.0.1.30/service.info["Fiscal Flow Client",state])="Stopped"'
+              name: 'O Apache TomCat Esta Parado'
+              priority: HIGH
+        - name: USUARIOS_CONECTADOS
+          key: system.users.num
+          delay: 5m
+          history: 90d
+          interface_ref: if1
+        - name: ESPAÇO_DISCO_DISPONIVEL
+          type: CALCULATED
+          key: vfs.fs.size
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/REINF-PROD_10.0.1.25/vfs.fs.size[C:,total]) - last(/REINF-PROD_10.0.1.25/vfs.fs.size[C:,used])'
+        - name: DISCO_EM_USO%
+          key: 'vfs.fs.size[C:,pused]'
+          delay: 5m
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/NFCE_JOIN_10.0.1.30/vfs.fs.size[C:,pused]) >= 70 and last(/NFCE_JOIN_10.0.1.30/vfs.fs.size[C:,pused]) <= 84'
+              name: '70% Ou + Do Disco Ocupado'
+              priority: WARNING
+            - expression: 'last(/NFCE_JOIN_10.0.1.30/vfs.fs.size[C:,pused]) >= 85 and last(/NFCE_JOIN_10.0.1.30/vfs.fs.size[C:,pused]) <= 89'
+              name: '85% Ou + Do Disco Ocupado'
+              priority: AVERAGE
+            - expression: 'last(/NFCE_JOIN_10.0.1.30/vfs.fs.size[C:,pused])>=90'
+              name: '90% Ou + Do Disco Ocupado'
+              priority: HIGH
+        - name: DISCO_TOTAL
+          key: 'vfs.fs.size[C:,total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: ESPAÇO_EM_USO
+          key: 'vfs.fs.size[C:,used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: PercentualUsoRam
+          key: 'vm.memory.size[pused]'
+          delay: 5m
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+        - name: RAM_TOTAL
+          key: 'vm.memory.size[total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: RAM_EM_USO
+          key: 'vm.memory.size[used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: RAM_DISPONIVEL
+          type: CALCULATED
+          key: vm.memory.util
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/REINF-PROD_10.0.1.25/vm.memory.size[total]) - last(/REINF-PROD_10.0.1.25/vm.memory.size[used])'
+    - host: NFCE_PENPLC_10.0.1.40
+      name: NFCE_PENPLC_10.0.1.40
+      groups:
+        - name: SERVIDORES
+      interfaces:
+        - ip: 10.0.1.40
+          interface_ref: if1
+      items:
+        - name: FISCAL_FLOW
+          key: 'service.info["Fiscal Flow Client",state]'
+          history: 90d
+          value_type: TEXT
+          preprocessing:
+            - type: STR_REPLACE
+              parameters:
+                - '0'
+                - Running
+            - type: STR_REPLACE
+              parameters:
+                - '6'
+                - Stopped
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/NFCE_PENPLC_10.0.1.40/service.info["Fiscal Flow Client",state])="Stopped"'
+              name: 'O Apache TomCat Esta Parado'
+              priority: HIGH
+        - name: USUARIOS_CONECTADOS
+          key: system.users.num
+          delay: 5m
+          history: 90d
+          interface_ref: if1
+        - name: ESPAÇO_DISCO_DISPONIVEL
+          type: CALCULATED
+          key: vfs.fs.size
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/REINF-PROD_10.0.1.25/vfs.fs.size[C:,total]) - last(/REINF-PROD_10.0.1.25/vfs.fs.size[C:,used])'
+        - name: DISCO_EM_USO%
+          key: 'vfs.fs.size[C:,pused]'
+          delay: 5m
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/NFCE_PENPLC_10.0.1.40/vfs.fs.size[C:,pused]) >= 70 and last(/NFCE_PENPLC_10.0.1.40/vfs.fs.size[C:,pused]) <= 84'
+              name: '70% Ou + Do Disco Ocupado'
+              priority: WARNING
+            - expression: 'last(/NFCE_PENPLC_10.0.1.40/vfs.fs.size[C:,pused]) >= 85 and last(/NFCE_PENPLC_10.0.1.40/vfs.fs.size[C:,pused]) <= 89'
+              name: '85% Ou + Do Disco Ocupado'
+              priority: AVERAGE
+            - expression: 'last(/NFCE_PENPLC_10.0.1.40/vfs.fs.size[C:,pused])>=90'
+              name: '90% Ou + Do Disco Ocupado'
+              priority: HIGH
+        - name: DISCO_TOTAL
+          key: 'vfs.fs.size[C:,total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: ESPAÇO_EM_USO
+          key: 'vfs.fs.size[C:,used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: PercentualUsoRam
+          key: 'vm.memory.size[pused]'
+          delay: 5m
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+        - name: RAM_TOTAL
+          key: 'vm.memory.size[total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: RAM_EM_USO
+          key: 'vm.memory.size[used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: RAM_DISPONIVEL
+          type: CALCULATED
+          key: vm.memory.util
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/REINF-PROD_10.0.1.25/vm.memory.size[total]) - last(/REINF-PROD_10.0.1.25/vm.memory.size[used])'
+    - host: NFCE_PLC_10.0.1.20
+      name: NFCE_PLC_10.0.1.20
+      groups:
+        - name: SERVIDORES
+      interfaces:
+        - ip: 10.0.1.20
+          interface_ref: if1
+      items:
+        - name: FISCAL_FLOW
+          key: 'service.info["Fiscal Flow Client",state]'
+          history: 90d
+          value_type: TEXT
+          preprocessing:
+            - type: STR_REPLACE
+              parameters:
+                - '0'
+                - Running
+            - type: STR_REPLACE
+              parameters:
+                - '6'
+                - Stopped
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/NFCE_PLC_10.0.1.20/service.info["Fiscal Flow Client",state])="Stopped"'
+              name: 'O Apache TomCat Esta Parado'
+              priority: HIGH
+        - name: USUARIOS_CONECTADOS
+          key: system.users.num
+          delay: 5m
+          history: 90d
+          interface_ref: if1
+        - name: ESPAÇO_DISCO_DISPONIVEL
+          type: CALCULATED
+          key: vfs.fs.size
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/REINF-PROD_10.0.1.25/vfs.fs.size[C:,total]) - last(/REINF-PROD_10.0.1.25/vfs.fs.size[C:,used])'
+        - name: DISCO_EM_USO%
+          key: 'vfs.fs.size[C:,pused]'
+          delay: 5m
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/NFCE_PLC_10.0.1.20/vfs.fs.size[C:,pused]) >= 70 and last(/NFCE_PLC_10.0.1.20/vfs.fs.size[C:,pused]) <= 84'
+              name: '70% Ou + Do Disco Ocupado'
+              priority: WARNING
+            - expression: 'last(/NFCE_PLC_10.0.1.20/vfs.fs.size[C:,pused]) >= 85 and last(/NFCE_PLC_10.0.1.20/vfs.fs.size[C:,pused]) <= 89'
+              name: '85% Ou + Do Disco Ocupado'
+              priority: AVERAGE
+            - expression: 'last(/NFCE_PLC_10.0.1.20/vfs.fs.size[C:,pused])>=90'
+              name: '90% Ou + Do Disco Ocupado'
+              priority: HIGH
+        - name: DISCO_TOTAL
+          key: 'vfs.fs.size[C:,total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: ESPAÇO_EM_USO
+          key: 'vfs.fs.size[C:,used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: PercentualUsoRam
+          key: 'vm.memory.size[pused]'
+          delay: 5m
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+        - name: RAM_TOTAL
+          key: 'vm.memory.size[total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: RAM_EM_USO
+          key: 'vm.memory.size[used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: RAM_DISPONIVEL
+          type: CALCULATED
+          key: vm.memory.util
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/REINF-PROD_10.0.1.25/vm.memory.size[total]) - last(/REINF-PROD_10.0.1.25/vm.memory.size[used])'
+    - host: NFEMGATST_10.0.0.214
+      name: NFEMGATST_10.0.0.214
+      groups:
+        - name: SERVIDORES
+      interfaces:
+        - ip: 10.0.0.214
+          interface_ref: if1
+      items:
+        - name: IIS
+          key: 'service.info["IISADMIN",state]'
+          history: 90d
+          value_type: TEXT
+          preprocessing:
+            - type: STR_REPLACE
+              parameters:
+                - '6'
+                - Stopped
+            - type: STR_REPLACE
+              parameters:
+                - '0'
+                - Running
+          interface_ref: if1
+        - name: USUARIOS_CONECTADOS
+          key: system.users.num
+          delay: 5m
+          history: 90d
+          interface_ref: if1
+        - name: ESPAÇO_DISCO_DISPONIVEL
+          type: CALCULATED
+          key: vfs.fs.size
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/NFEMGATST_10.0.0.214/vfs.fs.size[C:,total]) - last(/NFEMGATST_10.0.0.214/vfs.fs.size[C:,used])'
+        - name: DISCO_EM_USO%
+          key: 'vfs.fs.size[C:,pused]'
+          delay: 5m
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/NFEMGATST_10.0.0.214/vfs.fs.size[C:,pused]) >= 70 and last(/NFEMGATST_10.0.0.214/vfs.fs.size[C:,pused]) <= 84'
+              name: '70% Ou + Do Disco Ocupado'
+              priority: WARNING
+            - expression: 'last(/NFEMGATST_10.0.0.214/vfs.fs.size[C:,pused]) >= 85 and last(/NFEMGATST_10.0.0.214/vfs.fs.size[C:,pused]) <= 89'
+              name: '85% Ou + Do Disco Ocupado'
+              priority: AVERAGE
+            - expression: 'last(/NFEMGATST_10.0.0.214/vfs.fs.size[C:,pused])>=90'
+              name: '90% Ou + Do Disco Ocupado'
+              priority: HIGH
+        - name: DISCO_TOTAL
+          key: 'vfs.fs.size[C:,total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: ESPAÇO_EM_USO
+          key: 'vfs.fs.size[C:,used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: PercentualUsoRam
+          key: 'vm.memory.size[pused]'
+          delay: 5m
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+        - name: RAM_TOTAL
+          key: 'vm.memory.size[total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: RAM_EM_USO
+          key: 'vm.memory.size[used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: RAM_DISPONIVEL
+          type: CALCULATED
+          key: vm.memory.util
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/NFEMGATST_10.0.0.214/vm.memory.size[total]) - last(/NFEMGATST_10.0.0.214/vm.memory.size[used])'
+    - host: NFESELD_10.0.0.219
+      name: NFESELD_10.0.0.219
+      groups:
+        - name: SERVIDORES
+      interfaces:
+        - ip: 10.0.0.219
+          interface_ref: if1
+      items:
+        - name: IIS
+          key: 'service.info["IISADMIN",state]'
+          history: 90d
+          value_type: TEXT
+          preprocessing:
+            - type: STR_REPLACE
+              parameters:
+                - '6'
+                - Stopped
+            - type: STR_REPLACE
+              parameters:
+                - '0'
+                - Running
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/NFESELD_10.0.0.219/service.info["IISADMIN",state])="Stopped"'
+              name: 'IIS Não Está Rodando'
+              priority: HIGH
+        - name: USUARIOS_CONECTADOS
+          key: system.users.num
+          delay: 5m
+          history: 90d
+          interface_ref: if1
+        - name: ESPAÇO_DISCO_DISPONIVEL
+          type: CALCULATED
+          key: vfs.fs.size
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/NFESELD_10.0.0.219/vfs.fs.size[C:,total]) - last(/NFESELD_10.0.0.219/vfs.fs.size[C:,used])'
+        - name: DISCO_EM_USO%
+          key: 'vfs.fs.size[C:,pused]'
+          delay: 5m
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/NFESELD_10.0.0.219/vfs.fs.size[C:,pused]) >= 70 and last(/NFESELD_10.0.0.219/vfs.fs.size[C:,pused]) <= 84'
+              name: '70% Ou + Do Disco Ocupado'
+              priority: WARNING
+            - expression: 'last(/NFESELD_10.0.0.219/vfs.fs.size[C:,pused]) >= 85 and last(/NFESELD_10.0.0.219/vfs.fs.size[C:,pused]) <= 89'
+              name: '85% Ou + Do Disco Ocupado'
+              priority: AVERAGE
+            - expression: 'last(/NFESELD_10.0.0.219/vfs.fs.size[C:,pused])>=90'
+              name: '90% Ou + Do Disco Ocupado'
+              priority: HIGH
+        - name: DISCO_TOTAL
+          key: 'vfs.fs.size[C:,total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: ESPAÇO_EM_USO
+          key: 'vfs.fs.size[C:,used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: PercentualUsoRam
+          key: 'vm.memory.size[pused]'
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+        - name: RAM_TOTAL
+          key: 'vm.memory.size[total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: RAM_EM_USO
+          key: 'vm.memory.size[used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: RAM_DISPONIVEL
+          type: CALCULATED
+          key: vm.memory.util
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/NFESELD_10.0.0.219/vm.memory.size[total]) - last(/NFESELD_10.0.0.219/vm.memory.size[used])'
+    - host: NFESSJP_10.0.0.216
+      name: NFESSJP_10.0.0.216
+      groups:
+        - name: SERVIDORES
+      interfaces:
+        - ip: 10.0.0.216
+          interface_ref: if1
+      items:
+        - name: APACHE
+          key: 'service.info["Apache2.2",state]'
+          history: 90d
+          value_type: TEXT
+          preprocessing:
+            - type: STR_REPLACE
+              parameters:
+                - '6'
+                - Stopped
+            - type: STR_REPLACE
+              parameters:
+                - '0'
+                - Running
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/NFESSJP_10.0.0.216/service.info["Apache2.2",state])="Stopped"'
+              name: 'Apache Não Está Rodando'
+              priority: HIGH
+        - name: USUARIOS_CONECTADOS
+          key: system.users.num
+          delay: 5m
+          history: 90d
+          interface_ref: if1
+        - name: ESPAÇO_DISCO_DISPONIVEL
+          type: CALCULATED
+          key: vfs.fs.size
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/NFESSJP_10.0.0.216/vfs.fs.size[C:,total]) - last(/NFESSJP_10.0.0.216/vfs.fs.size[C:,used])'
+        - name: DISCO_EM_USO%
+          key: 'vfs.fs.size[C:,pused]'
+          delay: 5m
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/NFESSJP_10.0.0.216/vfs.fs.size[C:,pused]) >= 70 and last(/NFESSJP_10.0.0.216/vfs.fs.size[C:,pused]) <= 84'
+              name: '70% Ou + Do Disco Ocupado'
+              priority: WARNING
+            - expression: 'last(/NFESSJP_10.0.0.216/vfs.fs.size[C:,pused]) >= 85 and last(/NFESSJP_10.0.0.216/vfs.fs.size[C:,pused]) <= 89'
+              name: '85% Ou + Do Disco Ocupado'
+              priority: AVERAGE
+            - expression: 'last(/NFESSJP_10.0.0.216/vfs.fs.size[C:,pused])>=90'
+              name: '90% Ou + Do Disco Ocupado'
+              priority: HIGH
+        - name: DISCO_TOTAL
+          key: 'vfs.fs.size[C:,total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: ESPAÇO_EM_USO
+          key: 'vfs.fs.size[C:,used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: PercentualUsoRam
+          key: 'vm.memory.size[pused]'
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+        - name: RAM_TOTAL
+          key: 'vm.memory.size[total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: RAM_EM_USO
+          key: 'vm.memory.size[used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: RAM_DISPONIVEL
+          type: CALCULATED
+          key: vm.memory.util
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/NFESSJP_10.0.0.216/vm.memory.size[total]) - last(/NFESSJP_10.0.0.216/vm.memory.size[used])'
+    - host: REINF-PROD_10.0.1.25
+      name: REINF-PROD_10.0.1.25
+      groups:
+        - name: SERVIDORES
+      interfaces:
+        - ip: 10.0.1.25
+          interface_ref: if1
+      items:
+        - name: APACHE
+          key: 'service.info["Tomcat6",state]'
+          history: 90d
+          value_type: TEXT
+          preprocessing:
+            - type: STR_REPLACE
+              parameters:
+                - '0'
+                - Running
+            - type: STR_REPLACE
+              parameters:
+                - '6'
+                - Stopped
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/REINF-PROD_10.0.1.25/service.info["Tomcat6",state])="Stopped"'
+              name: 'O Apache TomCat Esta Parado'
+              priority: HIGH
+        - name: USUARIOS_CONECTADOS
+          key: system.users.num
+          delay: 5m
+          history: 90d
+          interface_ref: if1
+        - name: ESPAÇO_DISCO_DISPONIVEL
+          type: CALCULATED
+          key: vfs.fs.size
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/REINF-PROD_10.0.1.25/vfs.fs.size[C:,total]) - last(/REINF-PROD_10.0.1.25/vfs.fs.size[C:,used])'
+        - name: DISCO_EM_USO%
+          key: 'vfs.fs.size[C:,pused]'
+          delay: 5m
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+          triggers:
+            - expression: 'last(/REINF-PROD_10.0.1.25/vfs.fs.size[C:,pused]) >= 70 and last(/REINF-PROD_10.0.1.25/vfs.fs.size[C:,pused]) <= 84'
+              name: '70% Ou + Do Disco Ocupado'
+              priority: WARNING
+            - expression: 'last(/REINF-PROD_10.0.1.25/vfs.fs.size[C:,pused]) >= 85 and last(/REINF-PROD_10.0.1.25/vfs.fs.size[C:,pused]) <= 89'
+              name: '85% Ou + Do Disco Ocupado'
+              priority: AVERAGE
+            - expression: 'last(/REINF-PROD_10.0.1.25/vfs.fs.size[C:,pused])>=90'
+              name: '90% Ou + Do Disco Ocupado'
+              priority: HIGH
+        - name: DISCO_TOTAL
+          key: 'vfs.fs.size[C:,total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: ESPAÇO_EM_USO
+          key: 'vfs.fs.size[C:,used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: PercentualUsoRam
+          key: 'vm.memory.size[pused]'
+          history: 90d
+          units: '%'
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - '^([0-9]+)\.([0-9]+$)'
+                - \1
+          interface_ref: if1
+        - name: RAM_TOTAL
+          key: 'vm.memory.size[total]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: RAM_EM_USO
+          key: 'vm.memory.size[used]'
+          delay: 5m
+          history: 90d
+          units: B
+          interface_ref: if1
+        - name: RAM_DISPONIVEL
+          type: CALCULATED
+          key: vm.memory.util
+          delay: 5m
+          history: 90d
+          units: B
+          params: 'last(/REINF-PROD_10.0.1.25/vm.memory.size[total]) - last(/REINF-PROD_10.0.1.25/vm.memory.size[used])'
+    - host: TrueNAS
+      name: TrueNAS
+      templates:
+        - name: 'TrueNAS by SNMP'
+      groups:
+        - name: SERVIDORES
+      interfaces:
+        - type: SNMP
+          ip: 10.0.1.10
+          port: '161'
+          details:
+            version: SNMPV3
+            securityname: usersnmp
+            securitylevel: AUTHPRIV
+            authprotocol: SHA1
+            authpassphrase: pwsnmp
+            privprotocol: AES128
+            privpassphrase: pwsnmp
+          interface_ref: if1
+      discovery_rules:
+        - name: 'External bad battery packs discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#EXTERNAL_PACKS},1.3.6.1.4.1.318.1.1.1.2.2.6]'
+          key: battery.packs.bad.discovery
+          delay: 1h
+          lifetime: 30d
+          enabled_lifetime_type: DISABLE_NEVER
+          description: 'Discovery of the number of external defective battery packs.'
+          interface_ref: if1
+          item_prototypes:
+            - name: '{#SNMPINDEX}: External battery packs bad'
+              type: SNMP_AGENT
+              snmp_oid: 1.3.6.1.4.1.318.1.1.1.2.2.6.0
+              key: 'battery.external_packs_bad[upsAdvBatteryNumOfBadBattPacks.{#SNMPINDEX}]'
+              delay: 15m
+              history: 7d
+              description: |
+                MIB: PowerNet-MIB
+                The number of external battery packs connected to the UPS that
+                are defective. If the UPS does not use smart cells then the
+                agent reports ERROR_NO_SUCH_NAME.
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              interface_ref: if1
+              tags:
+                - tag: component
+                  value: inventory
+        - name: 'External battery packs discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#CARTRIDGE_STATUS},1.3.6.1.4.1.318.1.1.1.2.3.10.2.1.7,{#BATTERY_PACK},1.3.6.1.4.1.318.1.1.1.2.3.10.2.1.1,{#CARTRIDGE_INDEX},1.3.6.1.4.1.318.1.1.1.2.3.10.2.1.2]'
+          key: battery.packs.discovery
+          delay: 1h
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#CARTRIDGE_STATUS}'
+                value: ^$
+                operator: NOT_MATCHES_REGEX
+          lifetime: 30d
+          enabled_lifetime_type: DISABLE_NEVER
+          interface_ref: if1
+          item_prototypes:
+            - name: '{#BATTERY_PACK}.{#CARTRIDGE_INDEX}: Battery estimated replace date'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.4.1.318.1.1.1.2.3.10.2.1.8.{#SNMPINDEX}'
+              key: 'battery.estimated_replace_date[upsHighPrecBatteryPackCartridgeReplaceDate.{#BATTERY_PACK}.{#CARTRIDGE_INDEX}]'
+              delay: 5s
+              history: 7d
+              value_type: CHAR
+              description: |
+                MIB: PowerNet-MIB
+                The battery cartridge estimated battery replace date.
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              interface_ref: if1
+              tags:
+                - tag: component
+                  value: inventory
+                - tag: component
+                  value: power
+            - name: '{#BATTERY_PACK}.{#CARTRIDGE_INDEX}: Battery pack cartridge health'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.4.1.318.1.1.1.2.3.10.2.1.7.{#SNMPINDEX}'
+              key: 'battery.pack.cartridge_health[upsHighPrecBatteryPackCartridgeHealth.{#BATTERY_PACK}.{#CARTRIDGE_INDEX}]'
+              delay: 5s
+              history: 7d
+              value_type: CHAR
+              description: |
+                MIB: PowerNet-MIB
+                The battery cartridge health.
+                  bit 0 Battery lifetime okay
+                  bit 1 Battery lifetime near end, order replacement cartridge
+                  bit 2 Battery lifetime exceeded, replace battery
+                  bit 3 Battery lifetime near end acknowledged, order replacement cartridge
+                  bit 4 Battery lifetime exceeded acknowledged, replace battery
+                  bit 5 Battery measured lifetime near end, order replacement cartridge
+                  bit 6 Battery measured lifetime near end acknowledged, order replacement cartridge
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              interface_ref: if1
+              tags:
+                - tag: component
+                  value: health
+                - tag: component
+                  value: power
+              trigger_prototypes:
+                - expression: 'find(/TrueNAS/battery.pack.cartridge_health[upsHighPrecBatteryPackCartridgeHealth.{#BATTERY_PACK}.{#CARTRIDGE_INDEX}],,"regexp","^(0)[0|1]{15}$")=1'
+                  name: '{#BATTERY_PACK}.{#CARTRIDGE_INDEX}: Battery lifetime is not okay'
+                  opdata: 'Current bit set: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: |
+                    The battery cartridge health.
+                      bit 0 Battery lifetime okay
+                      bit 1 Battery lifetime near end, order replacement cartridge
+                      bit 2 Battery lifetime exceeded, replace battery
+                      bit 3 Battery lifetime near end acknowledged, order replacement cartridge
+                      bit 4 Battery lifetime exceeded acknowledged, replace battery
+                      bit 5 Battery measured lifetime near end, order replacement cartridge
+                      bit 6 Battery measured lifetime near end acknowledged, order replacement cartridge
+                  tags:
+                    - tag: scope
+                      value: notice
+            - name: '{#BATTERY_PACK}.{#CARTRIDGE_INDEX}: Battery status'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.4.1.318.1.1.1.2.3.10.2.1.10.{#SNMPINDEX}'
+              key: 'battery.pack.status[upsHighPrecBatteryPackCartridgeStatus.{#BATTERY_PACK}.{#CARTRIDGE_INDEX}]'
+              delay: 5s
+              history: 7d
+              value_type: CHAR
+              description: |
+                MIB: PowerNet-MIB
+                The status of the UPS batteries. A batteryLow(3) value
+                 indicates the UPS will be unable to sustain the current
+                 load, and its services will be lost if power is not restored.
+                 The amount of run time in reserve at the time of low battery
+                 can be configured by the upsAdvConfigLowBatteryRunTime.
+                 A batteryInFaultCondition(4)value indicates that a battery
+                 installed has an internal error condition.
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              interface_ref: if1
+              tags:
+                - tag: component
+                  value: health
+                - tag: component
+                  value: power
+              trigger_prototypes:
+                - expression: 'find(/TrueNAS/battery.pack.status[upsHighPrecBatteryPackCartridgeStatus.{#BATTERY_PACK}.{#CARTRIDGE_INDEX}],,"regexp","^(0{16})$")=0'
+                  name: '{#BATTERY_PACK}.{#CARTRIDGE_INDEX}: Battery status is not okay'
+                  opdata: 'Current bit set: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: |
+                    The battery cartridge status:
+                    bit 0 Disconnected
+                    bit 1 Overvoltage
+                    bit 2 NeedsReplacement
+                    bit 3 OvertemperatureCritical
+                    bit 4 Charger
+                    bit 5 TemperatureSensor
+                    bit 6 BusSoftStart
+                    bit 7 OvertemperatureWarning
+                    bit 8 GeneralError
+                    bit 9 Communication
+                    bit 10 DisconnectedFrame
+                    bit 11 FirmwareMismatch
+                  tags:
+                    - tag: scope
+                      value: notice
+            - name: '{#BATTERY_PACK}.{#CARTRIDGE_INDEX}: Battery temperature'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.4.1.318.1.1.1.2.3.10.2.1.5.{#SNMPINDEX}'
+              key: 'battery.temperature[upsHighPrecBatteryPackTemperature.{#BATTERY_PACK}.{#CARTRIDGE_INDEX}]'
+              delay: 5s
+              history: 7d
+              value_type: FLOAT
+              units: ℃
+              description: |
+                MIB: PowerNet-MIB
+                The current internal UPS temperature in Celsius.
+                Temperatures below zero read as 0.
+              preprocessing:
+                - type: MULTIPLIER
+                  parameters:
+                    - '0.1'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              interface_ref: if1
+              tags:
+                - tag: component
+                  value: temperature
+              trigger_prototypes:
+                - expression: 'min(/TrueNAS/battery.temperature[upsHighPrecBatteryPackTemperature.{#BATTERY_PACK}.{#CARTRIDGE_INDEX}],{$TIME.PERIOD}) > {$BATTERY.TEMP.MAX.WARN}'
+                  name: '{#BATTERY_PACK}.{#CARTRIDGE_INDEX}: Battery has high temperature'
+                  event_name: '{#BATTERY_PACK}.{#CARTRIDGE_INDEX}: Battery has high temperature (over {$BATTERY.TEMP.MAX.WARN}℃ for {$TIME.PERIOD})'
+                  opdata: 'Current temperature: {ITEM.LASTVALUE1}'
+                  priority: HIGH
+                  tags:
+                    - tag: scope
+                      value: notice
+            - name: '{#BATTERY_PACK}.{#CARTRIDGE_INDEX}: Serial number'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.4.1.318.1.1.1.2.3.10.2.1.4.{#SNMPINDEX}'
+              key: 'system.sn[upsHighPrecBatteryPackSerialNumber.{#BATTERY_PACK}.{#CARTRIDGE_INDEX}]'
+              delay: 5s
+              history: 7d
+              value_type: CHAR
+              description: |
+                MIB: PowerNet-MIB
+                An 8-character string identifying the serial number of
+                 the UPS internal microprocessor.  This number is set at
+                 the factory.  NOTE: This number does NOT correspond to
+                 the serial number on the rear of the UPS.
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              interface_ref: if1
+              tags:
+                - tag: component
+                  value: inventory
+        - name: 'External sensor port 1 discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#EXTERNAL_SENSOR1_NAME},1.3.6.1.4.1.318.1.1.25.1.2.1.3]'
+          key: external.sensor1.discovery
+          delay: 1h
+          lifetime: 30d
+          enabled_lifetime_type: DISABLE_NEVER
+          description: uioSensorStatusTable
+          interface_ref: if1
+          item_prototypes:
+            - name: '{#EXTERNAL_SENSOR1_NAME}: Humidity sensor'
+              type: SNMP_AGENT
+              snmp_oid: 1.3.6.1.4.1.318.1.1.25.1.2.1.7.1.1
+              key: 'external.sensor.humidity[uioSensorStatusHumidity.1.{#SNMPINDEX}]'
+              delay: 5s
+              history: 7d
+              value_type: FLOAT
+              units: '%'
+              description: |
+                MIB: PowerNet-MIB
+                The sensor's current humidity reading - a relative humidity
+                 percentage. -1 indicates an invalid reading due to either a
+                 sensor that doesn't read humidity or lost communications.
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              interface_ref: if1
+              tags:
+                - tag: component
+                  value: humidity
+                - tag: component
+                  value: power
+            - name: '{#EXTERNAL_SENSOR1_NAME}: Sensor alarm status'
+              type: SNMP_AGENT
+              snmp_oid: 1.3.6.1.4.1.318.1.1.25.1.2.1.9.1.1
+              key: 'external.sensor.status[uioSensorStatusAlarmStatus.1.{#SNMPINDEX}]'
+              delay: 5s
+              history: 7d
+              description: |
+                MIB: PowerNet-MIB
+                The alarm status of the sensor. Possible values:
+                uioNormal                 (1),
+                uioWarning                (2),
+                uioCritical               (3),
+                sensorStatusNotApplicable (4)
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              interface_ref: if1
+              tags:
+                - tag: component
+                  value: health
+                - tag: component
+                  value: power
+              trigger_prototypes:
+                - expression: 'last(/TrueNAS/external.sensor.status[uioSensorStatusAlarmStatus.1.{#SNMPINDEX}])=3'
+                  name: '{#EXTERNAL_SENSOR1_NAME}: Sensor has status Critical'
+                  priority: HIGH
+                  description: 'The external sensor has returned a value greater than the critical threshold.'
+                  tags:
+                    - tag: scope
+                      value: notice
+                - expression: 'last(/TrueNAS/external.sensor.status[uioSensorStatusAlarmStatus.1.{#SNMPINDEX}])=4'
+                  name: '{#EXTERNAL_SENSOR1_NAME}: Sensor has status Not Applicable'
+                  priority: INFO
+                  description: 'The external sensor does not work or is not connected.'
+                  tags:
+                    - tag: scope
+                      value: notice
+                - expression: 'last(/TrueNAS/external.sensor.status[uioSensorStatusAlarmStatus.1.{#SNMPINDEX}])=2'
+                  name: '{#EXTERNAL_SENSOR1_NAME}: Sensor has status Warning'
+                  priority: AVERAGE
+                  description: 'The external sensor has returned a value greater than the warning threshold.'
+                  tags:
+                    - tag: scope
+                      value: notice
+            - name: '{#EXTERNAL_SENSOR1_NAME}: Temperature sensor'
+              type: SNMP_AGENT
+              snmp_oid: 1.3.6.1.4.1.318.1.1.25.1.2.1.6.1.1
+              key: 'external.sensor.temperature[uioSensorStatusTemperatureDegC.1.{#SNMPINDEX}]'
+              delay: 5s
+              history: 7d
+              value_type: FLOAT
+              units: ℃
+              description: |
+                MIB: PowerNet-MIB
+                The sensor's current temperature reading in Celsius.
+                 -1 indicates an invalid reading due to lost communications.
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              interface_ref: if1
+              tags:
+                - tag: component
+                  value: power
+                - tag: component
+                  value: temperature
+          overrides:
+            - name: Temp
+              step: '1'
+              filter:
+                conditions:
+                  - macro: '{#EXTERNAL_SENSOR1_NAME}'
+                    value: Temp
+              operations:
+                - operator: LIKE
+                  value: Humidity
+                  discover: NO_DISCOVER
+        - name: 'External sensor port 2 discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#EXTERNAL_SENSOR2_NAME},1.3.6.1.4.1.318.1.1.25.1.2.2.3]'
+          key: external.sensor2.discovery
+          delay: 1h
+          lifetime: 30d
+          enabled_lifetime_type: DISABLE_NEVER
+          description: uioSensorStatusTable
+          interface_ref: if1
+          item_prototypes:
+            - name: '{#EXTERNAL_SENSOR2_NAME}: Humidity sensor'
+              type: SNMP_AGENT
+              snmp_oid: 1.3.6.1.4.1.318.1.1.25.1.2.2.7.1.1
+              key: 'external.sensor.humidity[uioSensorStatusHumidity.2.{#SNMPINDEX}]'
+              history: 7d
+              value_type: FLOAT
+              units: '%'
+              description: |
+                MIB: PowerNet-MIB
+                The sensor's current humidity reading - a relative humidity
+                 percentage. -1 indicates an invalid reading due to either a
+                 sensor that doesn't read humidity or lost communications.
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              interface_ref: if1
+              tags:
+                - tag: component
+                  value: humidity
+                - tag: component
+                  value: power
+            - name: '{#EXTERNAL_SENSOR2_NAME}: Sensor alarm status'
+              type: SNMP_AGENT
+              snmp_oid: 1.3.6.1.4.1.318.1.1.25.1.2.2.9.1.1
+              key: 'external.sensor.status[uioSensorStatusAlarmStatus.2.{#SNMPINDEX}]'
+              history: 7d
+              description: |
+                MIB: PowerNet-MIB
+                The alarm status of the sensor. Possible values:
+                uioNormal                 (1),
+                uioWarning                (2),
+                uioCritical               (3),
+                sensorStatusNotApplicable (4)
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              interface_ref: if1
+              tags:
+                - tag: component
+                  value: health
+                - tag: component
+                  value: power
+              trigger_prototypes:
+                - expression: 'last(/TrueNAS/external.sensor.status[uioSensorStatusAlarmStatus.2.{#SNMPINDEX}])=3'
+                  name: '{#EXTERNAL_SENSOR2_NAME}: Sensor has status Critical'
+                  priority: HIGH
+                  description: 'The external sensor has returned a value greater than the critical threshold.'
+                  tags:
+                    - tag: scope
+                      value: notice
+                - expression: 'last(/TrueNAS/external.sensor.status[uioSensorStatusAlarmStatus.2.{#SNMPINDEX}])=4'
+                  name: '{#EXTERNAL_SENSOR2_NAME}: Sensor has status Not Applicable'
+                  priority: INFO
+                  description: 'The external sensor does not work or is not connected.'
+                  tags:
+                    - tag: scope
+                      value: notice
+                - expression: 'last(/TrueNAS/external.sensor.status[uioSensorStatusAlarmStatus.2.{#SNMPINDEX}])=2'
+                  name: '{#EXTERNAL_SENSOR2_NAME}: Sensor has status Warning'
+                  priority: AVERAGE
+                  description: 'The external sensor has returned a value greater than the warning threshold.'
+                  tags:
+                    - tag: scope
+                      value: notice
+            - name: '{#EXTERNAL_SENSOR2_NAME}: Temperature sensor'
+              type: SNMP_AGENT
+              snmp_oid: 1.3.6.1.4.1.318.1.1.25.1.2.2.6.1.1
+              key: 'external.sensor.temperature[uioSensorStatusTemperatureDegC.2.{#SNMPINDEX}]'
+              history: 7d
+              value_type: FLOAT
+              units: ℃
+              description: |
+                MIB: PowerNet-MIB
+                The sensor's current temperature reading in Celsius.
+                 -1 indicates an invalid reading due to lost communications.
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              interface_ref: if1
+              tags:
+                - tag: component
+                  value: power
+                - tag: component
+                  value: temperature
+          overrides:
+            - name: Temp
+              step: '1'
+              filter:
+                conditions:
+                  - macro: '{#EXTERNAL_SENSOR2_NAME}'
+                    value: Temp
+              operations:
+                - operator: LIKE
+                  value: Humidity
+                  discover: NO_DISCOVER
+        - name: 'Input phases discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#PHASEINDEX},1.3.6.1.4.1.318.1.1.1.9.2.3.1.2.1.1]'
+          key: input.phases.discovery
+          delay: 1h
+          lifetime: 30d
+          enabled_lifetime_type: DISABLE_NEVER
+          description: 'The input phase identifier. OID upsPhaseInputPhaseIndex.1.1'
+          interface_ref: if1
+          item_prototypes:
+            - name: '{#PHASEINDEX}: Phase input current'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.4.1.318.1.1.1.9.2.3.1.6.1.1.{#PHASEINDEX}'
+              key: 'phase.input.current[upsPhaseInputCurrent.1.1.{#PHASEINDEX}]'
+              history: 7d
+              value_type: FLOAT
+              units: A
+              description: |
+                MIB: PowerNet-MIB
+                The input current in 0.1 amperes, or -0.1 if it's
+                 unsupported by this UPS.
+              preprocessing:
+                - type: MULTIPLIER
+                  parameters:
+                    - '0.1'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              interface_ref: if1
+              tags:
+                - tag: component
+                  value: power
+            - name: '{#PHASEINDEX}: Phase input voltage'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.4.1.318.1.1.1.9.2.3.1.3.1.1.{#PHASEINDEX}'
+              key: 'phase.input.voltage[upsPhaseInputVoltage.1.1.{#PHASEINDEX}]'
+              history: 7d
+              value_type: FLOAT
+              units: V
+              description: |
+                MIB: PowerNet-MIB
+                The input voltage in VAC, or -1 if it's unsupported
+                 by this UPS.
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              interface_ref: if1
+              tags:
+                - tag: component
+                  value: power
+              trigger_prototypes:
+                - expression: 'min(/TrueNAS/phase.input.voltage[upsPhaseInputVoltage.1.1.{#PHASEINDEX}],{$TIME.PERIOD}) > {$UPS.INPUT_VOLT.MAX.WARN} or max(/TrueNAS/phase.input.voltage[upsPhaseInputVoltage.1.1.{#PHASEINDEX}],{$TIME.PERIOD}) < {$UPS.INPUT_VOLT.MIN.WARN}'
+                  name: '{#PHASEINDEX}: Unacceptable phase {#PHASEINDEX} input voltage'
+                  event_name: '{#PHASEINDEX}: Unacceptable phase {#PHASEINDEX} input voltage (out of range {$UPS.INPUT_VOLT.MIN.WARN}-{$UPS.INPUT_VOLT.MAX.WARN}V for {$TIME.PERIOD})'
+                  opdata: 'Current phase {#PHASEINDEX} voltage: {ITEM.LASTVALUE1}'
+                  priority: HIGH
+                  tags:
+                    - tag: scope
+                      value: notice
+        - name: 'Output phases discovery'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#PHASEINDEX},1.3.6.1.4.1.318.1.1.1.9.3.3.1.2.1.1]'
+          key: output.phases.discovery
+          delay: 1h
+          lifetime: 30d
+          enabled_lifetime_type: DISABLE_NEVER
+          description: 'The output phase identifier. OID upsPhaseOutputPhaseIndex.1.1'
+          interface_ref: if1
+          item_prototypes:
+            - name: '{#PHASEINDEX}: Phase output current'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.4.1.318.1.1.1.9.3.3.1.4.1.1.{#PHASEINDEX}'
+              key: 'phase.output.current[upsPhaseOutputCurrent.1.1.{#PHASEINDEX}]'
+              history: 7d
+              value_type: FLOAT
+              units: A
+              description: |
+                MIB: PowerNet-MIB
+                The output current in 0.1 amperes drawn
+                 by the load on the UPS, or -1 if it's unsupported
+                 by this UPS.
+              preprocessing:
+                - type: MULTIPLIER
+                  parameters:
+                    - '0.1'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              interface_ref: if1
+              tags:
+                - tag: component
+                  value: power
+            - name: '{#PHASEINDEX}: Phase output load, %'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.4.1.318.1.1.1.9.3.3.1.10.1.1.{#PHASEINDEX}'
+              key: 'phase.output.load.percent[upsPhaseOutputPercentLoad.1.1.{#PHASEINDEX}]'
+              history: 7d
+              value_type: FLOAT
+              units: '%'
+              description: |
+                MIB: PowerNet-MIB
+                The percentage of the UPS load capacity in VA at
+                 redundancy @ (n + x) presently being used on this
+                 output phase, or -1 if it's unsupported by this UPS.
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              interface_ref: if1
+              tags:
+                - tag: component
+                  value: power
+            - name: '{#PHASEINDEX}: Phase output voltage'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.4.1.318.1.1.1.9.3.3.1.3.1.1.{#PHASEINDEX}'
+              key: 'phase.output.voltage[upsPhaseOutputVoltage.1.1.{#PHASEINDEX}]'
+              history: 7d
+              value_type: FLOAT
+              units: V
+              description: |
+                MIB: PowerNet-MIB
+                The output voltage in VAC, or -1 if it's unsupported
+                by this UPS.
+              preprocessing:
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              interface_ref: if1
+              tags:
+                - tag: component
+                  value: power
+              trigger_prototypes:
+                - expression: 'min(/TrueNAS/phase.output.voltage[upsPhaseOutputVoltage.1.1.{#PHASEINDEX}],{$TIME.PERIOD}) > {$UPS.INPUT_VOLT.MAX.WARN} or max(/TrueNAS/phase.output.voltage[upsPhaseOutputVoltage.1.1.{#PHASEINDEX}],{$TIME.PERIOD}) < {$UPS.INPUT_VOLT.MIN.WARN}'
+                  name: '{#PHASEINDEX}: Unacceptable phase {#PHASEINDEX} output voltage'
+                  event_name: '{#PHASEINDEX}: Unacceptable phase {#PHASEINDEX} output voltage (out of range {$UPS.INPUT_VOLT.MIN.WARN}-{$UPS.INPUT_VOLT.MAX.WARN}V for {$TIME.PERIOD})'
+                  opdata: 'Current phase {#PHASEINDEX} voltage: {ITEM.LASTVALUE1}'
+                  priority: HIGH
+                  tags:
+                    - tag: scope
+                      value: notice

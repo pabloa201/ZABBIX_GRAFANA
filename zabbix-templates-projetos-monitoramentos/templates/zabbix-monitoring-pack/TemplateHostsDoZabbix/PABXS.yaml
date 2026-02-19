@@ -1,0 +1,51 @@
+zabbix_export:
+  version: '7.2'
+  host_groups:
+    - uuid: 5429e2a948c44f57a96104cb118082de
+      name: CENTRAIS_TELEFONICAS
+  hosts:
+    - host: CENTRAL_ELDORADO_DO_SUL
+      name: CENTRAL_ELDORADO_DO_SUL
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: CENTRAIS_TELEFONICAS
+      interfaces:
+        - ip: 10.0.0.10
+          interface_ref: if1
+    - host: CENTRAL_JOINVILLE
+      name: CENTRAL_JOINVILLE
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: CENTRAIS_TELEFONICAS
+      interfaces:
+        - ip: 10.0.0.10
+          interface_ref: if1
+    - host: CENTRAL_MARIALVA
+      name: CENTRAL_MARIALVA
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: CENTRAIS_TELEFONICAS
+      interfaces:
+        - ip: 10.0.0.10
+          interface_ref: if1
+    - host: CENTRAL_PALHOCA
+      name: CENTRAL_PALHOCA
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: CENTRAIS_TELEFONICAS
+      interfaces:
+        - ip: 10.0.0.10
+          interface_ref: if1
+    - host: CENTRAL_SAO_JOSE_DOS_PINHAIS
+      name: CENTRAL_SAO_JOSE_DOS_PINHAIS
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: CENTRAIS_TELEFONICAS
+      interfaces:
+        - ip: 10.0.0.10
+          interface_ref: if1

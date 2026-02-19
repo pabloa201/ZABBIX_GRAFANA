@@ -1,0 +1,22 @@
+zabbix_export:
+  version: '7.2'
+  host_groups:
+    - uuid: 80a34174a31948508e5f7413f5b42ae2
+      name: NOBREAK
+  hosts:
+    - host: NOBREAK_SNMPV3
+      name: NOBREAK_SNMPV3
+      templates:
+        - name: 'APC Smart-UPS SRT 5000 by SNMP'
+      groups:
+        - name: NOBREAK
+      interfaces:
+        - type: SNMP
+          ip: 10.0.0.24
+          port: '161'
+          details:
+            version: SNMPV3
+            securityname: usersnmp
+            securitylevel: AUTHNOPRIV
+            authpassphrase: senhasnmp
+          interface_ref: if1

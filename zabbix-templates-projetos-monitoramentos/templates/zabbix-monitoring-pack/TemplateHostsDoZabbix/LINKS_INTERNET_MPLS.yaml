@@ -1,0 +1,253 @@
+zabbix_export:
+  version: '7.2'
+  host_groups:
+    - uuid: bc2b947b6b854915a4e8029626eeff4d
+      name: LinksInternet
+  hosts:
+    - host: CCV_EMBRATEL
+      name: CCV_EMBRATEL
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: LinksInternet
+      interfaces:
+        - ip: 10.0.0.1
+          interface_ref: if1
+    - host: ELD_EMBRATEL
+      name: ELD_EMBRATEL
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: LinksInternet
+      interfaces:
+        - ip: 10.0.0.1
+          interface_ref: if1
+    - host: ELD_INTELLIG
+      name: ELD_INTELLIG
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: LinksInternet
+      interfaces:
+        - ip: 10.0.0.1
+          interface_ref: if1
+    - host: ELD_LOCALNET
+      name: ELD_LOCALNET
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: LinksInternet
+      interfaces:
+        - ip: 10.0.0.1
+          interface_ref: if1
+    - host: JOIN_VIVO
+      name: JOIN_VIVO
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: LinksInternet
+      interfaces:
+        - ip: 10.0.0.1
+          interface_ref: if1
+    - host: MGA_COPEL
+      name: MGA_COPEL
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: LinksInternet
+      interfaces:
+        - ip: 10.0.0.1
+          interface_ref: if1
+    - host: MPLS_CCV
+      name: MPLS_CCV
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: LinksInternet
+      interfaces:
+        - ip: 10.0.0.1
+          interface_ref: if1
+    - host: MPLS_JOI
+      name: MPLS_JOI
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: LinksInternet
+      interfaces:
+        - ip: 10.0.0.1
+          interface_ref: if1
+    - host: MPLS_MGA
+      name: MPLS_MGA
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: LinksInternet
+      interfaces:
+        - ip: 10.0.0.1
+          interface_ref: if1
+    - host: MPLS_PLC
+      name: MPLS_PLC
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: LinksInternet
+      interfaces:
+        - ip: 10.0.0.1
+          interface_ref: if1
+    - host: MPLS_SJP
+      name: MPLS_SJP
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: LinksInternet
+      interfaces:
+        - ip: 10.0.0.1
+          interface_ref: if1
+    - host: PLC_EMBRATEL
+      name: PLC_EMBRATEL
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: LinksInternet
+      interfaces:
+        - ip: 10.0.0.1
+          interface_ref: if1
+    - host: SJP_MUNDIVOX
+      name: SJP_MUNDIVOX
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: LinksInternet
+      interfaces:
+        - ip: 10.0.0.1
+          interface_ref: if1
+    - host: SJP_VIAREDESUL
+      name: SJP_VIAREDESUL
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: LinksInternet
+      interfaces:
+        - ip: 10.0.0.1
+          interface_ref: if1
+  graphs:
+    - name: Link_ELD
+      type: STACKED
+      graph_items:
+        - color: FF0000
+          calc_fnc: MIN
+          item:
+            host: ELD_EMBRATEL
+            key: icmppingloss
+        - sortorder: '1'
+          color: 00FF00
+          calc_fnc: MIN
+          item:
+            host: ELD_EMBRATEL
+            key: icmpping
+        - sortorder: '2'
+          color: 2774A4
+          calc_fnc: MIN
+          item:
+            host: ELD_EMBRATEL
+            key: icmppingsec
+    - name: LINK_JOI
+      type: STACKED
+      graph_items:
+        - color: FF0000
+          calc_fnc: MIN
+          item:
+            host: JOIN_VIVO
+            key: icmppingloss
+        - sortorder: '1'
+          color: 00FF00
+          calc_fnc: MIN
+          item:
+            host: JOIN_VIVO
+            key: icmpping
+        - sortorder: '2'
+          color: 0080FF
+          calc_fnc: MIN
+          item:
+            host: JOIN_VIVO
+            key: icmppingsec
+    - name: LINK_JOI2
+      show_triggers: 'NO'
+      graph_items:
+        - color: FF0000
+          calc_fnc: MIN
+          item:
+            host: JOIN_VIVO
+            key: icmppingloss
+        - sortorder: '1'
+          color: 00FF00
+          calc_fnc: MIN
+          item:
+            host: JOIN_VIVO
+            key: icmpping
+        - sortorder: '2'
+          color: 0080FF
+          calc_fnc: MIN
+          item:
+            host: JOIN_VIVO
+            key: icmppingsec
+    - name: Link_PLC
+      type: STACKED
+      graph_items:
+        - color: FF0000
+          calc_fnc: MIN
+          item:
+            host: PLC_EMBRATEL
+            key: icmppingloss
+        - sortorder: '1'
+          color: 00FF00
+          calc_fnc: MIN
+          item:
+            host: PLC_EMBRATEL
+            key: icmpping
+        - sortorder: '2'
+          color: 0040FF
+          calc_fnc: MIN
+          item:
+            host: PLC_EMBRATEL
+            key: icmppingsec
+    - name: MGA_COPEL
+      type: STACKED
+      graph_items:
+        - color: FF0000
+          calc_fnc: MIN
+          item:
+            host: MGA_COPEL
+            key: icmppingloss
+        - sortorder: '1'
+          color: 00FF00
+          calc_fnc: MIN
+          item:
+            host: MGA_COPEL
+            key: icmpping
+        - sortorder: '2'
+          color: 0080FF
+          calc_fnc: MIN
+          item:
+            host: MGA_COPEL
+            key: icmppingsec
+    - name: SJP_MUNDIVOX
+      type: STACKED
+      graph_items:
+        - color: FF0000
+          calc_fnc: MIN
+          item:
+            host: SJP_MUNDIVOX
+            key: icmppingloss
+        - sortorder: '1'
+          color: 00FF00
+          calc_fnc: MIN
+          item:
+            host: SJP_MUNDIVOX
+            key: icmpping
+        - sortorder: '2'
+          color: 0080FF
+          calc_fnc: MIN
+          item:
+            host: SJP_MUNDIVOX
+            key: icmppingsec

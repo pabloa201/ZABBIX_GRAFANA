@@ -1,0 +1,235 @@
+zabbix_export:
+  version: '7.2'
+  host_groups:
+    - uuid: a1bd6f95c1154e559fa205330ccfddeb
+      name: IMPRESSORAS
+  hosts:
+    - host: CCV_ADM_X511
+      name: CCV_ADM_X511
+      description: 10.0.2.66
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: IMPRESSORAS
+      interfaces:
+        - ip: 10.5.0.20
+          interface_ref: if1
+    - host: ELD_ALMOX_X466
+      name: ELD_ALMOX_X466
+      description: 10.0.2.66
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: IMPRESSORAS
+      interfaces:
+        - ip: 10.0.2.70
+          interface_ref: if1
+    - host: ELD_CENTRAL_GX7010
+      name: ELD_CENTRAL_GX7010
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: IMPRESSORAS
+      interfaces:
+        - ip: 10.0.2.69
+          interface_ref: if1
+      valuemaps:
+        - name: ConvertStatus
+          mappings:
+            - value: '0'
+              newvalue: 'OFF'
+        - name: ConvertStatus2
+          mappings:
+            - value: '1'
+              newvalue: 'ON'
+    - host: ELD_CENTRAL_X464
+      name: ELD_CENTRAL_X464
+      description: 10.0.2.66
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: IMPRESSORAS
+      interfaces:
+        - ip: 10.0.2.61
+          interface_ref: if1
+    - host: ELD_CONT_E460
+      name: ELD_CONT_E460
+      description: 10.0.2.66
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: IMPRESSORAS
+      interfaces:
+        - ip: 10.0.2.67
+          interface_ref: if1
+    - host: ELD_FINAN_E460
+      name: ELD_FINAN_E460
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: IMPRESSORAS
+      interfaces:
+        - ip: 10.0.2.165
+          interface_ref: if1
+    - host: ELD_MAQ_X466
+      name: ELD_MAQ_X466
+      description: 10.0.2.66
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: IMPRESSORAS
+      interfaces:
+        - ip: 10.0.2.71
+          interface_ref: if1
+    - host: ELD_PECAS_X466
+      name: ELD_PECAS_X466
+      description: 10.0.2.66
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: IMPRESSORAS
+      interfaces:
+        - ip: 10.0.2.64
+          interface_ref: if1
+    - host: ELD_POSVENDAS_X466
+      name: ELD_POSVENDAS_X466
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: IMPRESSORAS
+      interfaces:
+        - ip: 10.0.2.63
+          interface_ref: if1
+    - host: ELD_RH_E460
+      name: ELD_RH_E460
+      description: 10.0.2.66
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: IMPRESSORAS
+      interfaces:
+        - ip: 10.0.2.138
+          interface_ref: if1
+    - host: ELD_SUP_X466
+      name: ELD_SUP_X466
+      description: 10.0.2.66
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: IMPRESSORAS
+      interfaces:
+        - ip: 10.0.2.66
+          interface_ref: if1
+    - host: FLO_ADM_GX7010
+      name: FLO_ADM_GX7010
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: IMPRESSORAS
+      interfaces:
+        - ip: 10.2.0.40
+          interface_ref: if1
+    - host: FLO_ADM_X466
+      name: FLO_ADM_X466
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: IMPRESSORAS
+      interfaces:
+        - ip: 10.2.0.10
+          interface_ref: if1
+    - host: FLO_ALMOX_X466
+      name: FLO_ALMOX_X466
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: IMPRESSORAS
+      interfaces:
+        - ip: 10.2.0.34
+          interface_ref: if1
+    - host: FLO_ALMOX_X610
+      name: FLO_ALMOX_X610
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: IMPRESSORAS
+      interfaces:
+        - ip: 10.2.0.28
+          interface_ref: if1
+    - host: JOI_ADM_X466
+      name: JOI_ADM_X466
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: IMPRESSORAS
+      interfaces:
+        - ip: 10.1.0.14
+          interface_ref: if1
+    - host: MGA_ADM_X466
+      name: MGA_ADM_X466
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: IMPRESSORAS
+      interfaces:
+        - ip: 10.4.0.108
+          interface_ref: if1
+    - host: MGA_ALMX_N460
+      name: MGA_ALMX_N460
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: IMPRESSORAS
+      interfaces:
+        - ip: 10.4.0.102
+          interface_ref: if1
+    - host: SJP_ADM_CX510
+      name: SJP_ADM_CX510
+      description: 10.0.2.66
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: IMPRESSORAS
+      interfaces:
+        - ip: 10.3.0.222
+          interface_ref: if1
+    - host: SJP_ADM_E460
+      name: SJP_ADM_E460
+      description: 10.0.2.66
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: IMPRESSORAS
+      interfaces:
+        - ip: 10.3.0.62
+          interface_ref: if1
+    - host: SJP_ALMX_E460
+      name: SJP_ALMX_E460
+      description: 10.0.2.66
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: IMPRESSORAS
+      interfaces:
+        - ip: 10.3.0.221
+          interface_ref: if1
+    - host: SJP_MEC_E460
+      name: SJP_MEC_E460
+      description: 10.0.2.66
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: IMPRESSORAS
+      interfaces:
+        - ip: 10.3.0.61
+          interface_ref: if1
+    - host: SJP_PECAS_X466
+      name: SJP_PECAS_X466
+      description: 10.0.2.66
+      templates:
+        - name: 'ICMP Ping'
+      groups:
+        - name: IMPRESSORAS
+      interfaces:
+        - ip: 10.3.0.100
+          interface_ref: if1
