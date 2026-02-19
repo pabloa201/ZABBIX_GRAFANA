@@ -5,6 +5,7 @@
                 /AUTOMZG-main                        (Script da comunidade)
 
                 /zabbix-templates-projetos-monitoramentos
+                /dhcp-badaddress-monitor    (ferramenta com python criada para automatizar monitoramento de servidor DHCP e detectar ocorrências de BAD_ADDRESS utilizando zabbix e enviar alerta via Telegram/E-mail)
                 /templates                  (aqui há meus templates de zabbix e meus templates de monitoramento customizado(ficará em uma pasta separada "monitoramento-customizado" os monitoramentos que criei))
                 DATABASES_ORACLE.yaml                   
                 NOBREAK.yaml
