@@ -12,7 +12,7 @@ chmod +x automzg.sh
 sudo ./automzg.sh
 
 2. Minha Versão Otimizada (Com Foco em Segurança)
-O arquivo install-zabbix-grafana.ufw-linux.sh é uma versão personalizada por mim. A principal melhoria foi a implementação do Hardening de Firewall (UFW).
+O arquivo install-zabbix-grafana.ufw-linux.sh é uma versão personalizada por mim. A diferença aplicada é do Firewall (UFW).
 
 Ao executar este script, o sistema configura automaticamente as regras de segurança, permitindo o tráfego apenas nas portas essenciais:
 
